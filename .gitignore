@@ -77,3 +77,5 @@ dmypy.json
 # Docker
 docker-compose.override.yml
 *.log
+
+.DS_Store
