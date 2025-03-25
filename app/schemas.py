@@ -42,3 +42,13 @@ class AttendanceEventResponse(AttendanceEventBase):
 class PasswordUpdate(BaseModel):
     current_password: constr(min_length=8)
     new_password: constr(min_length=8)
+
+
+class EmployeeStatusResponse(BaseModel):
+    employee_id: int
+    username: str
+    last_event: Optional[str] = None
+    last_event_time: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True

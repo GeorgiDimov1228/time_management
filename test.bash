@@ -69,6 +69,7 @@ curl -X POST "http://localhost:8000/api/checkout?rfid=1234567890" | json_pp
 # List All Check-Out Events
 curl http://localhost:8000/api/checkout | json_pp
 
+curl "http://localhost:8000/api/employees/status?rfid=1234567890" | json_pp
 
 # Now use the token in subsequent requests
 curl -H "Authorization: Bearer $TOKEN" \
@@ -81,3 +82,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 # Test getting non-existent user
 curl -H "Authorization: Bearer $TOKEN" \
   "http://localhost:8000/api/users/9999" | json_pp
+
+
+
+  

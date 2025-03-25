@@ -12,6 +12,29 @@ router = APIRouter(
 )
 
 
+@router.get("/employees/status", response_model=schemas.EmployeeStatusResponse)
+def get_employee_status(rfid: str, db: Session = Depends(get_db)):
+    # Look up employee by RFID
+    employee = crud.get_employee_by_rfid(db, rfid)
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Get the employee's most recent attendance event
+    latest_event = db.query(models.AttendanceEvent)\
+        .filter(models.AttendanceEvent.user_id == employee.id)\
+        .order_by(models.AttendanceEvent.timestamp.desc())\
+        .first()
+    
+    # Determine status based on latest event
+    last_event_type = latest_event.event_type if latest_event else None
+    
+    return {
+        "employee_id": employee.id,
+        "username": employee.username,
+        "last_event": last_event_type,
+        "last_event_time": latest_event.timestamp if latest_event else None
+    }
+
 @router.post("/checkin", response_model=schemas.AttendanceEventResponse)
 def check_in(rfid: str, db: Session = Depends(get_db)):
     # Look up employee by RFID
