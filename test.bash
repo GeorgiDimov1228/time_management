@@ -40,7 +40,7 @@ curl -X PUT -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json
   "rfid": "0987654321",
   "password": "newsecurepassword"
 }' \
-http://localhost:8000/api/users/1 | json_pp
+http://localhost:8000/api/users/2 | json_pp
 
 
 # Update a User's Password
@@ -48,40 +48,40 @@ curl -X PUT \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "current_password": "adminpassword",
-    "new_password": "newadminpassword"
+    "current_password": "newsecurepassword",
+    "new_password": "securepassword"
   }' \
-  http://localhost:8000/api/users/1/password | json_pp
+  http://localhost:8000/api/users/2/password | json_pp
 
-# Delete a User
-curl -X DELETE -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/users/1 | json_pp
+  # Update a User's Password
+curl -X PUT \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "current_password": "securepassword",
+    "new_password": "newsecurepassword"
+  }' \
+  http://localhost:8000/api/users/2/password | json_pp
+
+
 
 # Attendance Endpoints
-curl -X POST "http://localhost:8000/api/checkin?rfid=1234567890" 
+curl -X POST "http://localhost:8000/api/checkin?rfid=0987654321"  | json_pp
+curl "http://localhost:8000/api/employees/status?rfid=0987654321" | json_pp
+
+# Check-Out (Record an Attendance Event)
+curl -X POST "http://localhost:8000/api/checkout?rfid=0987654321" | json_pp
+curl "http://localhost:8000/api/employees/status?rfid=0987654321" | json_pp
 
 # List All Check-In Events
 curl http://localhost:8000/api/checkin | json_pp
-
-# Check-Out (Record an Attendance Event)
-curl -X POST "http://localhost:8000/api/checkout?rfid=1234567890" | json_pp
-
-
 # List All Check-Out Events
 curl http://localhost:8000/api/checkout | json_pp
 
-curl "http://localhost:8000/api/employees/status?rfid=1234567890" | json_pp
 
-# Now use the token in subsequent requests
-curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/users" | json_pp
+# Delete a User
+curl -X DELETE -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/users/2 | json_pp
 
-# Test pagination with one user
-curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/users?skip=0&limit=1" | json_pp
-
-# Test getting non-existent user
-curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/users/9999" | json_pp
 
 
 
