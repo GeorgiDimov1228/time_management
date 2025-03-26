@@ -62,7 +62,7 @@ DEFAULT_ADMIN_PASSWORD=adminpassword
 1. Build and start the containers:
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 2. The API will be available at http://localhost:8000
