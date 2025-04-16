@@ -71,7 +71,7 @@ curl "http://localhost:8000/api/employees/status?rfid=0987654321" | json_pp
 
 # Check-Out (Record an Attendance Event)
 curl -X POST "http://localhost:8000/api/checkout?rfid=0987654321" | json_pp
-curl "http://localhost:8000/api/employees/status?rfid=0987654321" | json_pp
+curl "http://localhost:8000/api/employees/status?rfid=828AFB03" | json_pp
 
 # List All Check-In Events
 curl http://localhost:8000/api/checkin | json_pp
@@ -83,6 +83,4 @@ curl http://localhost:8000/api/checkout | json_pp
 curl -X DELETE -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/users/2 | json_pp
 
 
-
-
-  
+curl -X POST -H "Content-Type: application/json" -d '{"rfid": "828AFB03"}' http://localhost:8000/api/scan

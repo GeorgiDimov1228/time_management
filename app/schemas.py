@@ -2,6 +2,33 @@ from pydantic import BaseModel, EmailStr, constr, validator
 from datetime import datetime
 from typing import Optional
 
+# Scan Schemas
+# class RFIDScanResponse(BaseModel):
+#     employee_id: int
+#     username: str
+#     last_event: Optional[str] = None
+#     last_event_time: Optional[datetime] = None
+
+#     class Config:
+#         from_attributes = True
+#         orm_mode = True         
+#         allow_population_by_field_name = True
+#         use_enum_values = True
+#         arbitrary_types_allowed = True
+#         json_encoders = {
+#             datetime: lambda v: v.isoformat() if isinstance(v, datetime) else v
+#         }
+#         schema_extra = {
+#             "example": {
+#                 "employee_id": 1,
+#                 "username": "johndoe",
+#                 "last_event": "checkin",
+#                 "last_event_time": "2023-10-01T12:00:00Z"
+#             }
+#         }
+class RFIDScanRequest(BaseModel):
+    rfid: str
+
 # Employee Schemas
 class EmployeeBase(BaseModel):
     username: str
