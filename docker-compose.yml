@@ -1,3 +1,14 @@
+
+# --- Define top-level networks first ---
+networks:
+  app-network:
+    driver: bridge
+
+# --- Define top-level volumes ---
+volumes:
+  postgres_data:
+
+# --- Define services ---
 services:
   db:
     image: postgres:13
@@ -14,6 +25,21 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks: # Assign network to the service
+      - app-network
+
+  redis:
+    image: redis:alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: # Assign network to the service
+      - app-network
 
   app:
     build: .
@@ -25,7 +51,14 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    env_file: .env
-    
-volumes:
-  postgres_data:
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      # Ensure your DATABASE_URL is correctly set either here or in the .env file
+      # Example if setting here:
+      # - DATABASE_URL=postgresql+asyncpg://yourusername:yourpassword@db:5432/time_management_db
+    networks: # Assign network to the service
+      - app-network

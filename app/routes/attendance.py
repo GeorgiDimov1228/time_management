@@ -1,24 +1,26 @@
+# app/routes/attendance.py
 from fastapi import APIRouter, HTTPException, Depends, Body
-from sqlalchemy.orm import Session
+# from sqlalchemy.orm import Session # <-- REMOVE
 from datetime import datetime, timedelta, timezone
-from app import models, schemas, database, crud
+from app import models, schemas, crud, security # Import async crud functions
 from typing import List
-from app.database import get_db
+# from app.database import get_db # <-- REMOVE
 import os
 
-# Define cooldown period (consider making this configurable via environment variable)
+
+# Define cooldown period
 ACTION_COOLDOWN_SECONDS = int(os.getenv("ACTION_COOLDOWN_SECONDS", 10))
 
 router = APIRouter(
     tags=["attendance"],
 )
 
+# --- Make routes async, remove db dependency, await crud/Tortoise calls ---
 
-# Add this new route to app/routes/attendance.py
-@router.post("/scan", response_model=schemas.AttendanceEventResponse) # Or a custom response
-def process_rfid_scan(
-    scan_data: schemas.RFIDScanRequest, # Use the new schema
-    db: Session = Depends(get_db)
+@router.post("/scan", response_model=schemas.AttendanceEventResponse)
+async def process_rfid_scan( # <-- async def
+    scan_data: schemas.RFIDScanRequest,
+    # db: Session = Depends(get_db) # <-- REMOVE
 ):
     rfid_tag = scan_data.rfid.strip()
     if not rfid_tag:
@@ -26,26 +28,24 @@ def process_rfid_scan(
 
     print(f"\nProcessing direct scan request for RFID: {rfid_tag}")
 
-    # 1. Find Employee
-    employee = crud.get_employee_by_rfid(db, rfid_tag)
+    # 1. Find Employee (use async crud)
+    employee = await crud.get_employee_by_rfid(rfid_tag) # <-- await
     if not employee:
         print(f"Employee not found for RFID: {rfid_tag}")
         raise HTTPException(status_code=404, detail="Employee not found")
 
-    # 2. Get Last Event (similar to /employees/status route)
-    latest_event = db.query(models.AttendanceEvent)\
-        .filter(models.AttendanceEvent.user_id == employee.id)\
-        .order_by(models.AttendanceEvent.timestamp.desc())\
-        .first()
+    # 2. Get Last Event (use async crud)
+    latest_event = await crud.get_latest_attendance_event(employee.id) # <-- await
 
     last_event_type = latest_event.event_type if latest_event else None
-    last_event_dt = latest_event.timestamp if latest_event else None
+    last_event_dt = latest_event.timestamp if latest_event else None # Assuming timestamp is datetime
 
-    # 3. Check Cooldown (logic from bridge.py)
+    # 3. Check Cooldown
     if last_event_dt:
-        # Ensure last_event_dt is timezone-aware (assuming stored as UTC)
+        # Ensure last_event_dt is timezone-aware (Tortoise might handle this depending on config)
         if last_event_dt.tzinfo is None:
-            last_event_dt = last_event_dt.replace(tzinfo=timezone.utc)
+             # If Tortoise stores naive datetimes, assume UTC
+             last_event_dt = last_event_dt.replace(tzinfo=timezone.utc)
 
         current_time_utc = datetime.now(timezone.utc)
         time_since_last_event = current_time_utc - last_event_dt
@@ -53,8 +53,6 @@ def process_rfid_scan(
 
         if time_since_last_event.total_seconds() < ACTION_COOLDOWN_SECONDS:
             print(f"Cooldown active for {rfid_tag}. Ignoring scan.")
-            # You might return a specific status or message indicating cooldown active
-            # For now, raise an exception, but a 200 OK with a specific body might be better UX
             raise HTTPException(status_code=429, detail=f"Cooldown active. Try again later. Last event: {last_event_type} at {last_event_dt}")
         else:
             print("Cooldown passed.")
@@ -65,38 +63,27 @@ def process_rfid_scan(
     next_action = "checkout" if last_event_type == "checkin" else "checkin"
     print(f"Determined action for {rfid_tag}: '{next_action}'")
 
-    # 5. Create and Record New Event (similar to /checkin & /checkout routes)
-    new_event = models.AttendanceEvent(
-        user_id=employee.id,
-        event_type=next_action,
-        timestamp=datetime.now(timezone.utc), # Store UTC time
-        manual=False # Scan is not manual
-    )
-    db.add(new_event)
-    db.commit()
-    db.refresh(new_event)
+    # 5. Create and Record New Event (use async crud)
+    new_event = await crud.create_attendance_event(employee.id, next_action) # <-- await
     print(f"Successfully recorded '{next_action}' for {rfid_tag}")
 
-    # Return the newly created event details
-    return new_event
+    return new_event # Return Tortoise model (ensure schema uses from_attributes)
 
 
 @router.get("/employees/status", response_model=schemas.EmployeeStatusResponse)
-def get_employee_status(rfid: str, db: Session = Depends(get_db)):
-    # Look up employee by RFID
-    employee = crud.get_employee_by_rfid(db, rfid)
+async def get_employee_status(rfid: str): # <-- async def, removed db
+    # Look up employee by RFID (use async crud)
+    employee = await crud.get_employee_by_rfid(rfid) # <-- await
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    
-    # Get the employee's most recent attendance event
-    latest_event = db.query(models.AttendanceEvent)\
-        .filter(models.AttendanceEvent.user_id == employee.id)\
-        .order_by(models.AttendanceEvent.timestamp.desc())\
-        .first()
-    
+
+    # Get the employee's most recent attendance event (use async crud)
+    latest_event = await crud.get_latest_attendance_event(employee.id) # <-- await
+
     # Determine status based on latest event
     last_event_type = latest_event.event_type if latest_event else None
-    
+
+    # Prepare response data (ensure schema has from_attributes=True)
     return {
         "employee_id": employee.id,
         "username": employee.username,
@@ -104,46 +91,36 @@ def get_employee_status(rfid: str, db: Session = Depends(get_db)):
         "last_event_time": latest_event.timestamp if latest_event else None
     }
 
-@router.post("/checkin", response_model=schemas.AttendanceEventResponse)
-def check_in(rfid: str, db: Session = Depends(get_db)):
-    # Look up employee by RFID
-    employee = crud.get_employee_by_rfid(db, rfid)
+# Note: The separate /checkin and /checkout endpoints might become redundant
+# if all scans go through the unified /scan endpoint.
+# If you keep them, they also need to be async and use async crud.
+
+@router.post("/checkin", response_model=schemas.AttendanceEventResponse, deprecated=True) # Mark as deprecated?
+async def check_in(rfid: str): # <-- async def, removed db
+    employee = await crud.get_employee_by_rfid(rfid) # <-- await
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    event = models.AttendanceEvent(
-        user_id=employee.id,
-        event_type="checkin",
-        timestamp=datetime.utcnow(),
-        manual=False
-    )
-    db.add(event)
-    db.commit()
-    db.refresh(event)
+    # Use async crud function to create event
+    event = await crud.create_attendance_event(employee.id, "checkin") # <-- await
     return event
 
-@router.get("/checkin", response_model=List[schemas.AttendanceEventResponse])
-def get_checkins(db: Session = Depends(get_db)):
-    events = db.query(models.AttendanceEvent).filter(models.AttendanceEvent.event_type == "checkin").all()
+@router.get("/checkin", response_model=List[schemas.AttendanceEventResponse], deprecated=True)
+async def get_checkins(): # <-- async def, removed db
+    # Use Tortoise query directly
+    events = await models.AttendanceEvent.filter(event_type="checkin").all() # <-- await
     return events
 
-@router.post("/checkout", response_model=schemas.AttendanceEventResponse)
-def check_out(rfid: str, db: Session = Depends(get_db)):
-    # Look up employee by RFID
-    employee = crud.get_employee_by_rfid(db, rfid)
+@router.post("/checkout", response_model=schemas.AttendanceEventResponse, deprecated=True) # Mark as deprecated?
+async def check_out(rfid: str): # <-- async def, removed db
+    employee = await crud.get_employee_by_rfid(rfid) # <-- await
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
-    event = models.AttendanceEvent(
-        user_id=employee.id,
-        event_type="checkout",
-        timestamp=datetime.utcnow(),
-        manual=False
-    )
-    db.add(event)
-    db.commit()
-    db.refresh(event)
+    # Use async crud function to create event
+    event = await crud.create_attendance_event(employee.id, "checkout") # <-- await
     return event
 
-@router.get("/checkout", response_model=List[schemas.AttendanceEventResponse])
-def get_checkouts(db: Session = Depends(get_db)):
-    events = db.query(models.AttendanceEvent).filter(models.AttendanceEvent.event_type == "checkout").all()
+@router.get("/checkout", response_model=List[schemas.AttendanceEventResponse], deprecated=True)
+async def get_checkouts(): # <-- async def, removed db
+    # Use Tortoise query directly
+    events = await models.AttendanceEvent.filter(event_type="checkout").all() # <-- await
     return events

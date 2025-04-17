@@ -1,13 +1,21 @@
 fastapi
-uvicorn
-sqlalchemy
+uvicorn[standard]
+# sqlalchemy            # <-- REMOVE
+asyncpg             # <-- Keep or add for Tortoise + PostgreSQL
+aioredis
+aiosqlite           # <-- Add if using SQLite with Tortoise
 pydantic[email]
-psycopg2-binary
 python-dotenv
 passlib[bcrypt]
-bcrypt==3.1.7  # Use a specific version compatible with passlib
+bcrypt==3.1.7
 python-jose[cryptography]
 python-multipart
-pyserial # Changed from serial for clarity
-requests # Added for the bridge script
-sqladmin
+requests
+fastapi-admin       # <-- Keep this (long2ice version)
+tortoise-orm        # <-- ADD Tortoise ORM
+aerich
+aioredis
+
+# Ensure psycopg2-binary is REMOVED
+# Ensure sqladmin is REMOVED
+# Ensure pyserial is REMOVED (if bridge obsolete)

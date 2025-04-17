@@ -1,150 +1,210 @@
-from fastapi import FastAPI
-from app.database import engine, Base, SessionLocal # Added SessionLocal
-from app import models, crud, schemas
-from app.routes import users, attendance # Removed projects if not used
-from app.auth import router as auth_router
+# app/main.py
 import os
-import datetime 
-
-# --- SQLAdmin Imports ---
-from sqladmin import Admin, ModelView
-from app.database import engine # Make sure engine is imported
-
-# --- End SQLAdmin Imports ---
+from contextlib import asynccontextmanager # <-- Import context manager
+from fastapi import FastAPI, Request, HTTPException, status
+from app import models, crud, schemas # Import Tortoise models, crud, schemas
+from app.security import pwd_context
+import aioredis
 
 
-# Create database tables if they don't exist
-# Base.metadata.create_all(bind=engine) # SQLAdmin might handle this, or keep it
 
-app = FastAPI(title="Time Management API")
+# Import Tortoise ORM config
+from app.tortoise_config import TORTOISE_ORM_CONFIG
 
-# --- SQLAdmin Setup ---
+# --- Tortoise ORM Initialization ---
+from tortoise.contrib.fastapi import register_tortoise
 
-# Define Admin Views for your models
-class EmployeeAdmin(ModelView, model=models.Employee):
-    # Columns to display in the list view
-    column_list = [models.Employee.id, models.Employee.username, models.Employee.email, models.Employee.rfid, models.Employee.is_admin]
-    column_labels = {
-        models.Employee.id: "Employee ID", # Example: Label for own column
-        models.Employee.username: 'Username',
-        models.Employee.email: 'Email', 
-        models.Employee.rfid: 'RFID',
-        models.Employee.is_admin: 'Admin',
+# --- FastAdmin Imports ---
+from fastapi_admin.app import app as admin_app
+from fastapi_admin.resources import Model, Field, ComputeField
+from fastapi_admin.widgets import displays, filters, inputs
+from fastapi_admin.providers.login import UsernamePasswordProvider # <-- Import login provider
+from fastapi.responses import RedirectResponse
 
-        
-    }
-    # Columns searchable in the list view
-    column_searchable_list = [models.Employee.username, models.Employee.rfid, models.Employee.email]
-    # Columns sortable in the list view
-    column_sortable_list = [models.Employee.id, models.Employee.username, models.Employee.is_admin]
-    # Columns to exclude from the edit/create forms (hashed_password managed elsewhere)
-    form_excluded_columns = [models.Employee.hashed_password, models.Employee.attendance_events]
-    # Optional: Define which columns are visible/editable in the create/edit forms
-    # form_columns = [models.Employee.username, models.Employee.email, models.Employee.rfid, models.Employee.is_admin]
-    column_filters = [models.Employee.username, models.Employee.rfid, models.Employee.email] # Keep relationship here for filtering by employee
-    name = "Employee"
-    name_plural = "Employees"
-    icon = "fa-solid fa-user" # Example icon (requires FontAwesome setup if not default)
+# from fastapi_admin.models import AbstractAdmin # May not be needed if using Employee model
+# from fastapi_admin.site import Site # Import if configuring site options
 
-class AttendanceEventAdmin(ModelView, model=models.AttendanceEvent):
-    column_list = [
-        models.AttendanceEvent.id,
-        'employee.username', # CORRECTED: Use string notation
-        models.AttendanceEvent.event_type,
-        models.AttendanceEvent.timestamp,
-        models.AttendanceEvent.manual
-    ]
-    column_labels = {
-        models.AttendanceEvent.id: "Event ID", # Example: Label for own column
-        'employee.username': 'Username', # Label for the related column
-        models.AttendanceEvent.event_type: 'Event Type',
-        models.AttendanceEvent.timestamp: 'Timestamp',
-        models.AttendanceEvent.manual: 'Manual Entry'
-
-    }
-    # Format timestamp for the LIST view (hide microseconds)
-    column_formatters = {
-         models.AttendanceEvent.timestamp:
-         lambda m, a: getattr(m, a).strftime("%Y-%m-%d %H:%M:%S") if getattr(m, a) else ""
-    }
-    # --- Add column_formatters_detail to format timestamp display on DETAIL view ---
-    column_formatters_detail = {
-        models.AttendanceEvent.timestamp:
-        # Example: Show full timestamp with microseconds on detail page
-        lambda m, a: getattr(m, a).strftime("%Y-%m-%d %H:%M:%S") if getattr(m, a) else ""
-    }
-    column_sortable_list = [models.AttendanceEvent.id, models.AttendanceEvent.timestamp, models.AttendanceEvent.event_type, 'employee.username', models.AttendanceEvent.manual] # CORRECTED: Use string notation
-    column_searchable_list = [
-        models.AttendanceEvent.event_type,
-        'employee.username' # CORRECTED: Use string notation
-    ]
-
-    # Use STRING notation for related fields in lists
-    column_details_list = [ # Columns shown in the detail view
-         models.AttendanceEvent.id,
-         'employee.username', # CORRECTED: Use string notation
-         models.AttendanceEvent.event_type,
-         models.AttendanceEvent.timestamp,
-         models.AttendanceEvent.manual
-    ]
-    # Filtering usually works on the relationship object itself or specific columns
-    column_filters = [models.AttendanceEvent.event_type, models.AttendanceEvent.manual, models.AttendanceEvent.employee] # Keep relationship here for filtering by employee
-    name = "Attendance Event"
-    name_plural = "Attendance Events"
-    icon = "fa-solid fa-clock"
-
-# Create Admin instance
-# Note: Authentication is NOT configured here for simplicity.
-# See SQLAdmin docs for adding authentication backends.
-admin = Admin(app=app, engine=engine) # No AuthenticationBackend provided initially
-
-# Register Admin Views
-admin.add_view(EmployeeAdmin)
-admin.add_view(AttendanceEventAdmin)
-
-# --- End SQLAdmin Setup ---
+@admin_app.get("/", include_in_schema=False)
+async def admin_index():
+    # Redirect to the list view of the first resource as a default landing page
+    return RedirectResponse(url="/admin/employee/list") # Check if '/list' is correct path
 
 
-# Include API routers (AFTER Admin setup if admin uses same path prefix potentially)
-app.include_router(auth_router, prefix="/api") # Token endpoint at /api/token
-app.include_router(users.router, prefix="/api") # Prefixed with /api/users
-app.include_router(attendance.router, prefix="/api") # Prefixed with /api/attendance
+# --- Async function to create default admin (Keep this definition) ---
+async def create_default_admin_async():
+    # Using await to call the async crud function
+    admin_user = await crud.get_employee_by_username("admin") # Default username 'admin'
+    if not admin_user:
+        default_username = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
+        default_email = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@example.com")
+        # Ensure you have a default password set in your .env or environment
+        default_password = os.getenv("DEFAULT_ADMIN_PASSWORD")
+        if not default_password:
+             print("ERROR: DEFAULT_ADMIN_PASSWORD environment variable not set. Cannot create default admin.")
+             return # Or raise an error
 
-
-# Create a default admin user if none exists (Keep this logic)
-def create_default_admin():
-    # Use SessionLocal for database operations outside requests
-    db = SessionLocal()
-    try:
-        admin_user = crud.get_employee_by_username(db, "admin")
-        if not admin_user:
-            default_username = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
-            default_email = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@example.com")
-            default_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "adminpassword")
-
-            admin_data = schemas.EmployeeCreate(
-                username=default_username,
-                email=default_email,
-                rfid="DEFAULT_ADMIN_RFID", # Assign a default RFID if needed
-                password=default_password,
-                is_admin=True
-            )
-            print("Attempting to create default admin user...")
-            created_user = crud.create_employee(db=db, employee=admin_data)
+        print(f"Attempting to create default admin user '{default_username}'...")
+        admin_data = schemas.EmployeeCreate(
+            username=default_username,
+            email=default_email,
+            rfid="ADMIN_RFID_001", # Assign a default/placeholder RFID
+            password=default_password,
+            is_admin=True
+        )
+        try:
+            # Using await to call the async crud function
+            created_user = await crud.create_employee(employee=admin_data)
             if created_user:
-                 print(f"Default admin user '{created_user.username}' created.")
+                 print(f"Default admin user '{created_user.username}' created successfully.")
             else:
-                 print("Failed to create default admin user.") # Should not happen unless DB error
-        else:
-            print("Admin user already exists.")
-    except Exception as e:
-        print(f"Error during default admin creation: {e}")
-    finally:
-        db.close()
+                 print(f"Failed to create default admin user '{default_username}'. It might already exist or there was a DB issue.")
+        except Exception as e:
+            print(f"Error during default admin creation: {e}")
+    else:
+        print(f"Admin user '{admin_user.username}' already exists.")
 
-# Call the function on startup
-# Consider running this in an explicit startup event if needed
-# @app.on_event("startup")
-# async def startup_event():
-#     create_default_admin()
-create_default_admin() # Call directly for now
+# --- Define Custom ComputeField (Keep this definition) ---
+class AttendanceEventsCountField(ComputeField):
+    async def get_value(self, request: Request, obj: dict):
+        employee_instance = await models.Employee.get_or_none(id=obj.get("id"))
+        if employee_instance:
+            count = await employee_instance.attendance_events.all().count()
+            return count
+        return 0
+
+
+# --- !!! CORRECTED Custom Login Provider !!! ---
+class CustomLoginProvider(UsernamePasswordProvider):
+    async def authenticate(self, username: str, password: str):
+        admin = await models.Employee.get_or_none(username=username)
+
+        # If user not found OR password verification fails, return None
+        if not admin or not pwd_context.verify(password, admin.hashed_password):
+             # Let the fastapi-admin framework handle generating the user-facing error
+             return None # <-- Return None on failure
+
+        # Only return the admin object if authentication succeeds
+        return admin
+
+# --- !!! END: Corrected Custom Login Provider !!! ---
+
+# --- Lifespan Function (New Way) ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Code to run before the application starts (startup) ---
+    print("Lifespan: Initializing Tortoise and Admin...")
+
+    # NOTE: register_tortoise handles its own lifespan for DB connections.
+    # We configure the admin app here after connections are expected to be ready.
+
+    admin_secret = os.getenv("ADMIN_SECRET", "please_change_this_secret_in_prod")
+    redis_url = os.getenv("REDIS_URL") # Get Redis URL from env
+
+    # Configure the login provider using Employee model
+    login_provider = UsernamePasswordProvider(
+        admin_model=models.Employee, # Use your Employee model for admin login
+        login_logo_url="https://preview.tabler.io/static/logo.svg" # Optional logo
+    )
+
+    # --- Create Redis Pool ---
+    redis_pool = None
+    if redis_url:
+        try:
+            # Use from_url for simplicity if aioredis v2+
+            redis_pool = await aioredis.from_url(redis_url, encoding="utf8")
+            print("Lifespan: Redis pool created.")
+        except Exception as e:
+            print(f"Lifespan: Failed to create Redis pool: {e}")
+            # Decide if Redis failure should prevent startup? Maybe not.
+            redis_pool = None # Ensure it's None if creation failed
+    else:
+        print("Lifespan: REDIS_URL not set, skipping Redis pool creation.")
+
+
+
+    # Configure the admin app
+    # redis = await aioredis.create_redis_pool("redis://localhost", encoding="utf8")
+    await admin_app.configure(
+        logo_url="https://preview.tabler.io/static/logo-white.svg",
+        template_folders=[os.path.join(os.path.dirname(__file__), "templates")], # Optional
+        providers=[login_provider],
+        redis=redis_pool,
+        # redis=os.getenv("REDIS_URL", "please_change_this_secret_in_prod"), # Optional
+        # admin_secret=admin_secret
+    )
+
+    # Create default admin user (needs DB connection from register_tortoise)
+    print("Lifespan: Creating default admin user (if needed)...")
+    # await create_default_admin_async()
+
+    print("Lifespan: Startup complete.")
+    yield
+    # --- Code to run after the application shuts down ---
+    print("Lifespan: Application shutting down...")
+    # Tortoise connections are closed automatically by register_tortoise
+
+
+# --- Your FastAPI app instance (with lifespan) ---
+app = FastAPI(title="Time Management API - Tortoise", lifespan=lifespan) # <-- Use lifespan here
+
+# --- Register Tortoise ORM ---
+# Needs to be setup so the lifespan function can use the DB
+register_tortoise(
+    app,
+    config=TORTOISE_ORM_CONFIG,
+    generate_schemas=True, # Creates tables if they don't exist (careful in prod)
+    add_exception_handlers=True, # Adds Tortoise exception handlers
+)
+
+# --- FastAdmin Resources (Keep these definitions) ---
+@admin_app.register
+class EmployeeResource(Model):
+    label = "Employee"
+    model = models.Employee
+    icon = "fas fa-user"
+    page_pre_title = "employee list"
+    page_title = "Employee model"
+    fields = [
+        "id", "username", "email", "rfid", "is_admin",
+        AttendanceEventsCountField(name="attendance_events_count", label="Events Count"),
+    ]
+    search_fields = ("username", "rfid", "email")
+    filters = [
+        filters.Search(name="username", label="Username", search_mode="contains"),
+        filters.Boolean(name="is_admin", label="Is Admin"),
+    ]
+
+@admin_app.register
+class AttendanceEventResource(Model):
+    label = "Attendance Event"
+    model = models.AttendanceEvent
+    icon = "fas fa-clock"
+    page_pre_title = "event list"
+    page_title = "Attendance Event model"
+    fields = [
+        "id",
+        # Field(name="employee__username", label="Username"), # Revisit this if default display isn't right
+        "employee", # Display ForeignKey directly first
+        "event_type",
+        "timestamp",
+        "manual",
+    ]
+    filters = [
+        filters.ForeignKey(model=models.Employee, name="employee", label="Employee"),
+        filters.Input(name="event_type", label="Event Type"),
+        filters.Boolean(name="manual", label="Manual"),
+    ]
+    # Adjust search based on direct FK field or computed field if needed
+    search_fields = ("employee__username", "event_type") # Might need adjustment
+
+# --- Mount the admin app ---
+app.mount("/admin", admin_app)
+
+# --- Include your API Routers ---
+from app.routes import users, attendance
+from app.auth import router as auth_router
+
+app.include_router(auth_router, prefix="/api")
+app.include_router(users.router, prefix="/api")
+app.include_router(attendance.router, prefix="/api")
+
