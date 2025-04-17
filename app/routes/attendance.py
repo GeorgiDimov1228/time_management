@@ -106,17 +106,26 @@ def get_employee_status(rfid: str, db: Session = Depends(get_db)):
         "last_event_time": latest_event.timestamp if latest_event else None
     }
 
+# Secured for Admin Manual Check-in
 @router.post("/checkin", response_model=schemas.AttendanceEventResponse)
-def check_in(rfid: str, db: Session = Depends(get_db)):
+def check_in(
+    rfid: str,
+    db: Session = Depends(get_db),
+    # Add admin security dependency
+    current_admin: models.Employee = Depends(security.get_current_admin_user)
+):
     # Look up employee by RFID
     employee = crud.get_employee_by_rfid(db, rfid)
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
+
+    print(f"Admin '{current_admin.username}' manually checking in RFID: {rfid}") # Optional logging
+
     event = models.AttendanceEvent(
         user_id=employee.id,
         event_type="checkin",
-        timestamp=datetime.utcnow(),
-        manual=False
+        timestamp=datetime.now(timezone.utc), # Use timezone-aware timestamp
+        manual=True  # <<< Set manual to True for admin actions
     )
     db.add(event)
     db.commit()
@@ -128,17 +137,26 @@ def get_checkins(db: Session = Depends(get_db)):
     events = db.query(models.AttendanceEvent).filter(models.AttendanceEvent.event_type == "checkin").all()
     return events
 
+# Secured for Admin Manual Check-out
 @router.post("/checkout", response_model=schemas.AttendanceEventResponse)
-def check_out(rfid: str, db: Session = Depends(get_db)):
+def check_out(
+    rfid: str,
+    db: Session = Depends(get_db),
+    # Add admin security dependency
+    current_admin: models.Employee = Depends(security.get_current_admin_user)
+):
     # Look up employee by RFID
     employee = crud.get_employee_by_rfid(db, rfid)
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
+
+    print(f"Admin '{current_admin.username}' manually checking out RFID: {rfid}") # Optional logging
+
     event = models.AttendanceEvent(
         user_id=employee.id,
         event_type="checkout",
-        timestamp=datetime.utcnow(),
-        manual=False
+        timestamp=datetime.now(timezone.utc), # Use timezone-aware timestamp
+        manual=True  # <<< Set manual to True for admin actions
     )
     db.add(event)
     db.commit()
