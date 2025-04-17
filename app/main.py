@@ -8,6 +8,11 @@ import datetime
 
 # --- SQLAdmin Imports ---
 from sqladmin import Admin, ModelView
+from starlette.middleware.sessions import SessionMiddleware
+
+from sqladmin.authentication import AuthenticationBackend
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
 from app.database import engine # Make sure engine is imported
 
 # --- End SQLAdmin Imports ---
@@ -17,6 +22,8 @@ from app.database import engine # Make sure engine is imported
 Base.metadata.create_all(bind=engine) # SQLAdmin might handle this, or keep it
 
 app = FastAPI(title="Time Management API")
+SESSION_SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-for-sessions")
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
 
 # --- SQLAdmin Setup ---
 
@@ -94,10 +101,14 @@ class AttendanceEventAdmin(ModelView, model=models.AttendanceEvent):
     name_plural = "Attendance Events"
     icon = "fa-solid fa-clock"
 
-# Create Admin instance
-# Note: Authentication is NOT configured here for simplicity.
-# See SQLAdmin docs for adding authentication backends.
-admin = Admin(app=app, engine=engine) # No AuthenticationBackend provided initially
+
+# --- Authentication Backend (Placeholder - will define below) ---
+
+from app.admin_auth import authentication_backend
+# --- Admin Instance (will be modified later) ---
+admin = Admin(app=app, engine=engine, authentication_backend=authentication_backend) # We will add authentication_backend here
+
+
 
 # Register Admin Views
 admin.add_view(EmployeeAdmin)

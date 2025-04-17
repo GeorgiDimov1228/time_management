@@ -11,3 +11,4 @@ python-multipart
 pyserial # Changed from serial for clarity
 requests # Added for the bridge script
 sqladmin
+itsdangerous
