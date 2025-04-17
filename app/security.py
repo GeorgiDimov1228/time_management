@@ -55,3 +55,21 @@ def get_current_admin_user(token: str = Depends(oauth2_scheme), db: Session = De
         raise HTTPException(status_code=403, detail="Not enough permissions")
     return user
 
+
+def get_current_authenticated_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """
+    Verifies JWT token and returns the corresponding user model.
+    Does NOT require the user to be an admin.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    user_id = verify_token(token, credentials_exception)
+    user = crud.get_employee(db, user_id=user_id) # Fetch user by ID
+    if user is None:
+        # This case might happen if the user was deleted after the token was issued
+        raise credentials_exception
+    # No admin check here - any valid user is allowed
+    return user

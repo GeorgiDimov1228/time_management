@@ -83,4 +83,4 @@ curl http://localhost:8000/api/checkout | json_pp
 curl -X DELETE -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/users/2 | json_pp
 
 
-curl -X POST -H "Content-Type: application/json" -d '{"rfid": "0987654321"}' http://localhost:8000/api/scan
+curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"rfid": "0987654321"}' http://localhost:8000/api/scan

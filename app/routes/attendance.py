@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Body
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
-from app import models, schemas, database, crud
+from app import models, schemas, database, crud, security
 from typing import List
 from app.database import get_db
 import os
@@ -18,13 +18,15 @@ router = APIRouter(
 @router.post("/scan", response_model=schemas.AttendanceEventResponse) # Or a custom response
 def process_rfid_scan(
     scan_data: schemas.RFIDScanRequest, # Use the new schema
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.Employee = Depends(security.get_current_authenticated_user)
+    
 ):
     rfid_tag = scan_data.rfid.strip()
     if not rfid_tag:
         raise HTTPException(status_code=400, detail="RFID tag cannot be empty")
 
-    print(f"\nProcessing direct scan request for RFID: {rfid_tag}")
+    print(f"\nProcessing direct scan request for RFID: {rfid_tag} by user: {current_user.username}") # Example usage
 
     # 1. Find Employee
     employee = crud.get_employee_by_rfid(db, rfid_tag)
