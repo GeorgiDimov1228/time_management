@@ -14,7 +14,7 @@ from app.database import engine # Make sure engine is imported
 
 
 # Create database tables if they don't exist
-# Base.metadata.create_all(bind=engine) # SQLAdmin might handle this, or keep it
+Base.metadata.create_all(bind=engine) # SQLAdmin might handle this, or keep it
 
 app = FastAPI(title="Time Management API")
 
@@ -36,7 +36,7 @@ class EmployeeAdmin(ModelView, model=models.Employee):
     # Columns searchable in the list view
     column_searchable_list = [models.Employee.username, models.Employee.rfid, models.Employee.email]
     # Columns sortable in the list view
-    column_sortable_list = [models.Employee.id, models.Employee.username, models.Employee.is_admin]
+    column_sortable_list = [models.Employee.id, models.Employee.username, models.Employee.is_admin, models.Employee.rfid, models.Employee.email]
     # Columns to exclude from the edit/create forms (hashed_password managed elsewhere)
     form_excluded_columns = [models.Employee.hashed_password, models.Employee.attendance_events]
     # Optional: Define which columns are visible/editable in the create/edit forms
@@ -62,6 +62,7 @@ class AttendanceEventAdmin(ModelView, model=models.AttendanceEvent):
         models.AttendanceEvent.manual: 'Manual Entry'
 
     }
+    form_excluded_columns = [models.AttendanceEvent.manual]
     # Format timestamp for the LIST view (hide microseconds)
     column_formatters = {
          models.AttendanceEvent.timestamp:
