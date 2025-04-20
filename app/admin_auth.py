@@ -1,5 +1,5 @@
 # In app/main.py (or app/admin_auth.py)
-
+# Admin panel authentication logic
 import os
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request

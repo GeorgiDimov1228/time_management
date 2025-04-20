@@ -1,3 +1,6 @@
+# This module handles authentication and token generation for the FastAPI application.
+# It uses OAuth2 password flow for user login and JWT for token management.
+# API authentication endpoints
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session

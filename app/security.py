@@ -1,3 +1,4 @@
+# Core security utilities used throughout the app
 import os
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
