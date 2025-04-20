@@ -9,12 +9,16 @@ This API allows employees to check in and out using RFID cards, tracks attendanc
 ## Features
 
 - **RFID-based Check-in/Check-out**: Track employee attendance through RFID card scans
+- **Smart Scan Processing**: Automatically determines check-in or check-out based on employee's last action
 - **User Management**: Create, read, update, and delete employee records
 - **Role-based Access Control**: Admin permissions for sensitive operations
 - **JWT Authentication**: Secure API access with token-based authentication
 - **Attendance Tracking**: Record and retrieve attendance events with timestamps
 - **Database Integration**: PostgreSQL storage for all employee and attendance data
 - **Docker Support**: Easy deployment with Docker and docker-compose
+- **Admin Panel**: Web-based administrative interface powered by SQLAdmin
+- **Hardware Integration**: Support for Arduino, ESP32/ESP8266 RFID readers
+- **Flexible RFID Reader Support**: Multiple integration options (direct API, bridge middleware)
 
 ## Architecture
 
@@ -25,6 +29,7 @@ The application follows a layered architecture pattern:
 - **Data Access Layer** (`app/models.py`, `app/database.py`): Database models and connection handling
 - **Schema Layer** (`app/schemas.py`): Data validation and serialization/deserialization
 - **Security** (`app/security.py`, `app/auth.py`): Authentication and authorization
+- **RFID Bridge** (`serial_portRead/bridge.py`): Middleware for non-networked RFID readers
 
 ## Tech Stack
 
@@ -35,6 +40,8 @@ The application follows a layered architecture pattern:
 - **JWT**: Token-based authentication
 - **Bcrypt**: Password hashing
 - **Docker**: Containerization
+- **SQLAdmin**: Admin interface
+- **Arduino/ESP**: RFID hardware integration
 
 ## Getting Started
 
@@ -42,6 +49,7 @@ The application follows a layered architecture pattern:
 
 - Docker and Docker Compose
 - Python 3.8+ (if running locally)
+- Arduino IDE (for hardware integration)
 
 ### Environment Setup
 
@@ -49,6 +57,7 @@ The application follows a layered architecture pattern:
 
 ```
 DATABASE_URL=postgresql://yourusername:yourpassword@db/time_management_db
+REDIS_URL=redis://redis:6379/0
 SECRET_KEY=your-secure-secret-key
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
@@ -66,6 +75,7 @@ docker compose up -d
 ```
 
 2. The API will be available at http://localhost:8000
+3. The Admin panel will be available at http://localhost:8000/admin
 
 ### Running Locally
 
@@ -99,21 +109,63 @@ uvicorn app.main:app --reload
 ### Attendance Tracking
 
 - **GET /api/employees/status?rfid={rfid}**: Get employee's current status
-- **POST /api/checkin?rfid={rfid}**: Record a check-in event
+- **POST /api/checkin?rfid={rfid}**: Record a check-in event (admin only)
 - **GET /api/checkin**: List all check-in events
-- **POST /api/checkout?rfid={rfid}**: Record a check-out event
+- **POST /api/checkout?rfid={rfid}**: Record a check-out event (admin only)
 - **GET /api/checkout**: List all check-out events
+- **POST /api/scan**: Process RFID scan (determines check-in or check-out automatically)
 
 ## RFID Integration
 
-The system includes an RFID listener (`app/rfid_listener.py`) that can interface with physical RFID readers. This component:
+The system provides multiple ways to integrate with RFID hardware:
+
+### 1. Direct API Integration
+
+Network-enabled RFID readers (like ESP32/ESP8266) can directly call the API endpoints. See `http.cpp` for an example implementation.
+
+### 2. RFID Bridge
+
+For non-networked readers (like Arduino with RFID-RC522), use the bridge script:
+
+```bash
+# Install required libraries
+pip install pyserial requests
+
+# Run the bridge script (adjust serial port as needed)
+python serial_portRead/bridge.py
+```
+
+The bridge:
+- Reads RFID UIDs from a serial connection
+- Handles communication with the API
+- Implements cooldown periods to prevent duplicate scans
+- Automatically determines check-in or check-out based on user's last event
+
+### 3. RFID Listener
+
+The system includes an RFID listener (`app/rfid_listener.py`) that can interface with network-accessible RFID readers. This component:
 
 - Runs as a background thread
 - Polls configured RFID readers for card scans
 - Processes scans by triggering check-in or check-out events
 - Supports multiple readers (e.g., entrance and exit points)
 
-To configure RFID readers, update the reader configurations in the `start_rfid_readers` function.
+## Hardware Selection Guide
+
+For guidance on selecting appropriate RFID hardware for your deployment, refer to the [RFID Hardware Selection Guide](rfid-choosing-guide.md).
+
+## Admin Panel
+
+The system includes a web-based admin panel at `/admin` that provides:
+
+- User management interface
+- Attendance event viewing and filtering
+- Manual attendance entry
+- Authentication security
+
+Default admin credentials are set in your `.env` file or with the following defaults:
+- Username: admin
+- Password: adminpassword
 
 ## Testing
 
@@ -121,6 +173,12 @@ The project includes a test script (`test.bash`) for testing API endpoints. Run 
 
 ```bash
 bash test.bash
+```
+
+For testing RFID functionality without hardware, use the mock RFID reader:
+
+```bash
+python mock_rfid_reader.py
 ```
 
 ## Database Schema
@@ -146,6 +204,7 @@ bash test.bash
 - API endpoints protected with JWT authentication
 - Admin-only routes require admin role verification
 - Default admin user is created on startup for initial setup
+- Session-based authentication for the admin panel
 
 ## License
 
