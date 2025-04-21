@@ -13,7 +13,11 @@ class Employee(Base):
     hashed_password = Column(String)  # For admin login
     is_admin = Column(Boolean, default=False)  # New field
 
-    attendance_events = relationship("AttendanceEvent", back_populates="employee")
+    attendance_events = relationship(
+        "AttendanceEvent",
+        back_populates="employee",
+        cascade="all, delete-orphan" # Add this line
+    )
 
     def __str__(self):
         # Return a user-friendly string representation
