@@ -1,71 +1,106 @@
+# time_management/app/rfid_listener.py (Illustrative async changes)
+import asyncio # Import asyncio
+import httpx # Import httpx
 import threading
 import time
-import requests
-from fastapi import FastAPI, Depends
+# from fastapi import FastAPI # FastAPI app instance might not be needed directly
 
-class RFIDReader(threading.Thread):
-    def __init__(self, app, reader_id, reader_url):
-        threading.Thread.__init__(self, daemon=True)
-        self.app = app
+# Consider running this outside the main FastAPI app process if it's complex
+# Or integrate properly using asyncio tasks within FastAPI startup/shutdown events
+
+class RFIDReader: # Removed threading.Thread inheritance for async approach
+    def __init__(self, reader_id, reader_url, api_base_url="http://localhost:8000/api"):
         self.reader_id = reader_id
         self.reader_url = reader_url
+        self.api_base_url = api_base_url # Make API base URL configurable
         self.running = False
-        
-    def run(self):
-        self.running = True
-        while self.running:
-            try:
-                # Poll the reader for new scans
-                rfid = self.poll_reader()
-                if rfid:
-                    self.process_scan(rfid)
-            except Exception as e:
-                print(f"Error reading RFID: {e}")
-            time.sleep(1)
-    
-    def poll_reader(self):
-        # Implementation depends on your reader
-        # This is a simplified example
-        response = requests.get(f"{self.reader_url}/scan")
-        if response.status_code == 200:
+        self.client = httpx.AsyncClient() # Create one client instance
+
+    async def poll_reader(self):
+        try:
+            response = await self.client.get(f"{self.reader_url}/scan", timeout=5.0)
+            response.raise_for_status() # Raise exception for bad status codes
             data = response.json()
             return data.get("rfid")
+        except httpx.RequestError as e:
+            print(f"Error polling reader {self.reader_id} ({self.reader_url}): {e}")
+        except Exception as e:
+             print(f"Unexpected error polling reader {self.reader_id}: {e}")
         return None
-    
-    
-    def process_scan(self, rfid):
-        # First, check the user's current state
-        response = requests.get(f"http://localhost:8000/api/employees/status?rfid={rfid}")
-        if response.status_code == 200:
-            user_status = response.json()
-            # If last event was check-out or no events today, do a check-in
-            if user_status.get("last_event") == "checkout" or user_status.get("last_event") is None:
-                requests.post(f"http://localhost:8000/api/checkin?rfid={rfid}")
-            # If last event was check-in, do a check-out
-            elif user_status.get("last_event") == "checkin":
-                requests.post(f"http://localhost:8000/api/checkout?rfid={rfid}")
-    
-    def process_scan_based_on_entrance(self, rfid):
-        # For entrance readers, create a check-in
-        if self.reader_id == "entrance":
-            requests.post(f"http://localhost:8000/api/checkin?rfid={rfid}")
-        # For exit readers, create a check-out
-        elif self.reader_id == "exit":
-            requests.post(f"http://localhost:8000/api/checkout?rfid={rfid}")
-        # Log the event
-        print(f"Processed {self.reader_id} scan for RFID: {rfid}")
-        
-    def stop(self):
-        self.running = False
 
-def start_rfid_readers(app):
+    async def process_scan(self, rfid):
+        # Use the direct /scan endpoint which handles logic and cooldown
+        scan_url = f"{self.api_base_url}/scan"
+        try:
+            print(f"Listener {self.reader_id}: Sending RFID {rfid} to {scan_url}")
+            response = await self.client.post(scan_url, json={"rfid": rfid}, timeout=5.0)
+
+            if 200 <= response.status_code < 300:
+                 print(f"Listener {self.reader_id}: Scan processed successfully for {rfid}. Response: {response.json()}")
+            elif response.status_code == 404:
+                 print(f"Listener {self.reader_id}: Scan failed for {rfid}. Employee not found (404).")
+            elif response.status_code == 429:
+                print(f"Listener {self.reader_id}: Scan failed for {rfid}. Cooldown active (429).")
+            else:
+                print(f"Listener {self.reader_id}: Scan failed for {rfid}. Status: {response.status_code}, Body: {response.text}")
+
+        except httpx.RequestError as e:
+            print(f"Listener {self.reader_id}: HTTP error processing scan for {rfid}: {e}")
+        except Exception as e:
+            print(f"Listener {self.reader_id}: Unexpected error processing scan for {rfid}: {e}")
+
+
+    async def run_polling(self):
+        self.running = True
+        print(f"Starting polling for reader: {self.reader_id} ({self.reader_url})")
+        while self.running:
+            try:
+                rfid = await self.poll_reader()
+                if rfid:
+                    await self.process_scan(rfid)
+                # Adjust sleep time as needed
+                await asyncio.sleep(1)
+            except Exception as e:
+                print(f"Error in polling loop for {self.reader_id}: {e}")
+                await asyncio.sleep(5) # Longer sleep on error
+
+    async def stop(self):
+        self.running = False
+        await self.client.aclose() # Close the httpx client
+        print(f"Stopped polling for reader: {self.reader_id}")
+
+
+# Example of how to run these listeners with asyncio
+async def main_listener_task():
     # Configuration for your RFID readers
-    readers = [
-        {"id": "entrance", "url": "http://192.168.1.100"},
-        {"id": "exit", "url": "http://192.168.1.101"}
+    readers_config = [
+        # Replace with actual URLs or get from config
+        {"id": "entrance", "url": "http://localhost:5000"}, # Using mock reader URL
+        # {"id": "exit", "url": "http://192.168.1.101"}
     ]
-    
-    # Start a thread for each reader
-    for reader_config in readers:
-        reader = RFIDReader(app, reader_config["id"], reader_config["url"])
-        reader.start()
+
+    readers = [RFIDReader(config["id"], config["url"]) for config in readers_config]
+    polling_tasks = [asyncio.create_task(reader.run_polling()) for reader in readers]
+
+    try:
+        # Keep tasks running
+        await asyncio.gather(*polling_tasks)
+    except asyncio.CancelledError:
+         print("Listener tasks cancelled.")
+    finally:
+        # Ensure stop is called on all readers
+        await asyncio.gather(*(reader.stop() for reader in readers))
+        print("All listeners stopped.")
+
+# You would typically start this main_listener_task during FastAPI startup
+# Example (in main.py):
+# @app.on_event("startup")
+# async def startup_event():
+#     asyncio.create_task(main_listener_task())
+
+# To run this file standalone for testing:
+# if __name__ == "__main__":
+#     try:
+#         asyncio.run(main_listener_task())
+#     except KeyboardInterrupt:
+#         print("Manual interruption.")

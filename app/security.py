@@ -1,25 +1,25 @@
-# Core security utilities used throughout the app
+# time_management/app/security.py
 import os
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session # Keep for sync version if needed
+from sqlalchemy.ext.asyncio import AsyncSession # Import AsyncSession
 from dotenv import load_dotenv
 
 from app import crud, models
-from app.database import get_db
+from app.database import get_db, get_async_db # Import both sync and async getter
 
-load_dotenv()  # Load environment variables from .env file
+load_dotenv()
 
-# Configuration from environment variables
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token") # Adjusted path relative to frontend
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
@@ -37,40 +37,65 @@ def verify_token(token: str, credentials_exception):
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-        return int(user_id)
+        # Validate that user_id is an integer before returning
+        try:
+            return int(user_id)
+        except (ValueError, TypeError):
+             raise credentials_exception
     except JWTError:
         raise credentials_exception
 
-def get_current_admin_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+# --- Async Dependency Functions ---
+
+async def get_current_user_async(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_async_db)) -> models.Employee:
+    """ Dependency to get the current user from token (async version). """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     user_id = verify_token(token, credentials_exception)
-    user = crud.get_employee(db, user_id)
+    user = await crud.get_employee(db, user_id=user_id) # Await the async crud function
     if user is None:
         raise credentials_exception
-    # Enforce admin-only access:
-    if not user.is_admin:
+    return user
+
+async def get_current_admin_user_async(current_user: models.Employee = Depends(get_current_user_async)) -> models.Employee:
+    """ Depends on get_current_user_async and checks admin status (async version). """
+    if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not enough permissions")
-    return user
+    return current_user
+
+async def get_current_authenticated_user_async(current_user: models.Employee = Depends(get_current_user_async)) -> models.Employee:
+     """ Alias for get_current_user_async for clarity in routes needing any logged-in user (async version). """
+     # This function just relies on get_current_user_async
+     return current_user
 
 
-def get_current_authenticated_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    """
-    Verifies JWT token and returns the corresponding user model.
-    Does NOT require the user to be an admin.
-    """
+# --- Sync Dependency Functions (Keep if needed for sync parts like /token or admin panel) ---
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.Employee:
+    """ Dependency to get the current user from token (sync version). """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     user_id = verify_token(token, credentials_exception)
-    user = crud.get_employee(db, user_id=user_id) # Fetch user by ID
+    # Use the synchronous crud function (assuming you might keep one or need a bridge)
+    # If crud is fully async, this sync version needs adjustment or removal.
+    # For now, assume a sync get_employee exists or is needed elsewhere.
+    user = crud.get_employee(db, user_id=user_id) # THIS NEEDS a SYNC crud.get_employee
     if user is None:
-        # This case might happen if the user was deleted after the token was issued
         raise credentials_exception
-    # No admin check here - any valid user is allowed
     return user
+
+def get_current_admin_user(current_user: models.Employee = Depends(get_current_user)) -> models.Employee:
+    """ Depends on get_current_user and checks admin status (sync version). """
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    return current_user
+
+def get_current_authenticated_user(current_user: models.Employee = Depends(get_current_user)) -> models.Employee:
+    """ Alias for get_current_user for clarity (sync version). """
+    return current_user
