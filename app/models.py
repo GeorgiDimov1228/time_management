@@ -26,7 +26,9 @@ class AttendanceEvent(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
     event_type = Column(String, index=True)  # "checkin" or "checkout"
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    # timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
     manual = Column(Boolean, default=True)
 
     employee = relationship("Employee", back_populates="attendance_events")

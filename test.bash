@@ -19,10 +19,22 @@ curl -X POST \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "username": "newuser",
-    "email": "newuser@example.com",
-    "rfid": "1234567890",
-    "password": "securepassword",
+    "username": "bridge",
+    "email": "bridge@example.com",
+    "rfid": "bridgerfid",
+    "password": "bridgepassword",
+    "is_admin": false
+  }' \
+  http://localhost:8000/api/users | json_pp
+
+  curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "listener",
+    "email": "listener@example.com",
+    "rfid": "listenerrfid",
+    "password": "listenerpassword",
     "is_admin": false
   }' \
   http://localhost:8000/api/users | json_pp
@@ -83,4 +95,4 @@ curl http://localhost:8000/api/checkout | json_pp
 curl -X DELETE -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/users/2 | json_pp
 
 
-curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"rfid": "0987654321"}' http://localhost:8000/api/scan
+curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"rfid": "123456789"}' http://localhost:8000/api/scan
