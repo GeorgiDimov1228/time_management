@@ -11,6 +11,11 @@ SESSION_SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-for-sessions")
 
 class AdminAuth(AuthenticationBackend):
 
+    # Add the __init__ method and call super().__init__
+    def __init__(self, secret_key: str):
+        super().__init__(secret_key=secret_key)
+        # You could add other initializations here if needed
+
     async def login(self, request: Request) -> bool:
         form = await request.form()
         username = form.get("username")
@@ -39,11 +44,23 @@ class AdminAuth(AuthenticationBackend):
 
         except Exception as e:
             print(f"Admin Login Error: An unexpected error occurred - {e}")
-            return False # Return False on any exception during login check
+            return False
         finally:
             if db:
                 db.close()
 
+        return True
+
+    async def logout(self, request: Request) -> bool:
+        # This method should now correctly override the base class method
+        print("Admin Logout Action Triggered") # Add log to confirm execution
+        try:
+            request.session.clear()
+            print("Session cleared successfully.")
+        except Exception as e:
+            print(f"Error clearing session during logout: {e}")
+            # Decide if you should still return True or False here
+            return False # Indicate logout failed if session clearing fails
         return True
 
     async def authenticate(self, request: Request) -> bool:
@@ -71,12 +88,11 @@ class AdminAuth(AuthenticationBackend):
             return False
         except Exception as e:
             print(f"Admin Authenticate Error: An unexpected error occurred - {e}")
-            # Potentially clear session here too, depending on error type
-            # request.session.clear()
             return False
         finally:
             if db:
                 db.close()
 
 # --- Instantiate the backend ---
+# This remains the same
 authentication_backend = AdminAuth(secret_key=SESSION_SECRET_KEY)

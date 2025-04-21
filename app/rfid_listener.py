@@ -1,20 +1,62 @@
-# time_management/app/rfid_listener.py (Illustrative async changes)
-import asyncio # Import asyncio
-import httpx # Import httpx
+# time_management/app/rfid_listener.py (Modified)
+import asyncio
+import httpx
+import os # Import os to get credentials from environment variables
 import threading
 import time
-# from fastapi import FastAPI # FastAPI app instance might not be needed directly
+from fastapi import HTTPException # Needed for potential credential errors
 
-# Consider running this outside the main FastAPI app process if it's complex
-# Or integrate properly using asyncio tasks within FastAPI startup/shutdown events
+# --- Credentials Configuration (Use Environment Variables) ---
+LISTENER_USERNAME = os.getenv("LISTENER_USERNAME")
+LISTENER_PASSWORD = os.getenv("LISTENER_PASSWORD")
+# --- End Configuration ---
 
-class RFIDReader: # Removed threading.Thread inheritance for async approach
+class RFIDReader:
     def __init__(self, reader_id, reader_url, api_base_url="http://localhost:8000/api"):
         self.reader_id = reader_id
         self.reader_url = reader_url
-        self.api_base_url = api_base_url # Make API base URL configurable
+        self.api_base_url = api_base_url
         self.running = False
-        self.client = httpx.AsyncClient() # Create one client instance
+        self.client = httpx.AsyncClient()
+        self._auth_token = None # To store the JWT token
+        self._token_lock = asyncio.Lock() # Lock for token refresh
+
+    async def _get_auth_token(self):
+        """Fetches or returns the cached JWT token."""
+        async with self._token_lock: # Ensure only one task refreshes the token
+            # Simple check: If we have a token, assume it's valid for now.
+            # A robust implementation would check expiry or handle 401 errors.
+            if self._auth_token:
+                return self._auth_token
+
+            if not LISTENER_USERNAME or not LISTENER_PASSWORD:
+                 print(f"Listener {self.reader_id}: ERROR - LISTENER_USERNAME or LISTENER_PASSWORD environment variables not set.")
+                 # Decide how to handle this - raise error, stop polling, etc.
+                 # For now, return None which will cause process_scan to fail
+                 return None
+
+            token_url = f"{self.api_base_url}/token"
+            try:
+                print(f"Listener {self.reader_id}: Fetching auth token from {token_url}")
+                # Note: httpx sends form data using the 'data' parameter
+                response = await self.client.post(
+                    token_url,
+                    data={"username": LISTENER_USERNAME, "password": LISTENER_PASSWORD}
+                )
+                response.raise_for_status() # Raise error for bad responses (4xx, 5xx)
+                token_data = response.json()
+                self._auth_token = token_data.get("access_token")
+                print(f"Listener {self.reader_id}: Successfully obtained auth token.")
+                return self._auth_token
+            except httpx.RequestError as e:
+                 print(f"Listener {self.reader_id}: HTTP error fetching token: {e}")
+            except httpx.HTTPStatusError as e:
+                 print(f"Listener {self.reader_id}: Failed to fetch token. Status: {e.response.status_code}, Body: {e.response.text}")
+            except Exception as e:
+                print(f"Listener {self.reader_id}: Unexpected error fetching token: {e}")
+
+            self._auth_token = None # Ensure token is None on failure
+            return None
 
     async def poll_reader(self):
         try:
@@ -29,14 +71,26 @@ class RFIDReader: # Removed threading.Thread inheritance for async approach
         return None
 
     async def process_scan(self, rfid):
-        # Use the direct /scan endpoint which handles logic and cooldown
+        token = await self._get_auth_token()
+        if not token:
+             print(f"Listener {self.reader_id}: Cannot process scan for {rfid}, failed to get auth token.")
+             # Optional: Attempt to re-authenticate after a delay?
+             return # Stop processing if no token
+
+        headers = {"Authorization": f"Bearer {token}"}
         scan_url = f"{self.api_base_url}/scan"
+
         try:
             print(f"Listener {self.reader_id}: Sending RFID {rfid} to {scan_url}")
-            response = await self.client.post(scan_url, json={"rfid": rfid}, timeout=5.0)
+            response = await self.client.post(scan_url, json={"rfid": rfid}, headers=headers, timeout=5.0)
 
             if 200 <= response.status_code < 300:
                  print(f"Listener {self.reader_id}: Scan processed successfully for {rfid}. Response: {response.json()}")
+            elif response.status_code == 401: # Unauthorized
+                 print(f"Listener {self.reader_id}: Scan failed for {rfid}. Authorization failed (401). Token might be invalid/expired.")
+                 # Invalidate the token so it's refreshed on the next attempt
+                 async with self._token_lock:
+                     self._auth_token = None
             elif response.status_code == 404:
                  print(f"Listener {self.reader_id}: Scan failed for {rfid}. Employee not found (404).")
             elif response.status_code == 429:
@@ -53,6 +107,9 @@ class RFIDReader: # Removed threading.Thread inheritance for async approach
     async def run_polling(self):
         self.running = True
         print(f"Starting polling for reader: {self.reader_id} ({self.reader_url})")
+        # Attempt initial authentication
+        await self._get_auth_token()
+
         while self.running:
             try:
                 rfid = await self.poll_reader()
@@ -70,11 +127,15 @@ class RFIDReader: # Removed threading.Thread inheritance for async approach
         print(f"Stopped polling for reader: {self.reader_id}")
 
 
-# Example of how to run these listeners with asyncio
+# --- Example of running listeners (remains the same) ---
 async def main_listener_task():
-    # Configuration for your RFID readers
+    # Ensure LISTENER_USERNAME and LISTENER_PASSWORD are set in your environment
+    if not LISTENER_USERNAME or not LISTENER_PASSWORD:
+        print("ERROR: LISTENER_USERNAME or LISTENER_PASSWORD environment variables are not set.")
+        print("The RFID listener cannot authenticate with the API and will not run.")
+        return # Prevent listeners from starting without credentials
+
     readers_config = [
-        # Replace with actual URLs or get from config
         {"id": "entrance", "url": "http://localhost:5000"}, # Using mock reader URL
         # {"id": "exit", "url": "http://192.168.1.101"}
     ]
@@ -83,12 +144,10 @@ async def main_listener_task():
     polling_tasks = [asyncio.create_task(reader.run_polling()) for reader in readers]
 
     try:
-        # Keep tasks running
         await asyncio.gather(*polling_tasks)
     except asyncio.CancelledError:
          print("Listener tasks cancelled.")
     finally:
-        # Ensure stop is called on all readers
         await asyncio.gather(*(reader.stop() for reader in readers))
         print("All listeners stopped.")
 

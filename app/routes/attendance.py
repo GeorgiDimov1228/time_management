@@ -70,7 +70,10 @@ async def process_rfid_scan( # Make async
 
 
 @router.get("/employees/status", response_model=schemas.EmployeeStatusResponse)
-async def get_employee_status(rfid: str, db: AsyncSession = Depends(get_async_db)): # Make async
+async def get_employee_status(rfid: str,
+                              db: AsyncSession = Depends(get_async_db),
+                              authenticated_user: models.Employee = Depends(security.get_current_authenticated_user_async)
+): # Make async
     # Use await with async CRUD functions
     employee = await crud.get_employee_by_rfid(db, rfid)
     if not employee:
@@ -112,7 +115,8 @@ async def check_in( # Make async
     return event
 
 @router.get("/checkin", response_model=List[schemas.AttendanceEventResponse])
-async def get_checkins(db: AsyncSession = Depends(get_async_db)): # Make async
+async def get_checkins(db: AsyncSession = Depends(get_async_db), authenticated_user: models.Employee = Depends(security.get_current_authenticated_user_async)
+): # Make async
      # Use await with async CRUD function
     events = await crud.get_checkin_events(db)
     return events
@@ -143,7 +147,8 @@ async def check_out( # Make async
     return event
 
 @router.get("/checkout", response_model=List[schemas.AttendanceEventResponse])
-async def get_checkouts(db: AsyncSession = Depends(get_async_db)): # Make async
+async def get_checkouts(db: AsyncSession = Depends(get_async_db), authenticated_user: models.Employee = Depends(security.get_current_authenticated_user_async)
+): # Make async
     # Use await with async CRUD function
     events = await crud.get_checkout_events(db)
     return events
