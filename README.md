@@ -19,6 +19,9 @@ This API allows employees to check in and out using RFID cards, tracks attendanc
 - **Admin Panel**: Web-based administrative interface powered by SQLAdmin
 - **Hardware Integration**: Support for Arduino, ESP32/ESP8266 RFID readers
 - **Flexible RFID Reader Support**: Multiple integration options (direct API, bridge middleware)
+- **Cooldown Mechanism**: Prevents duplicate scans within a configurable time window
+- **UTC Timezone Support**: Consistent timestamp handling across different time zones
+- **Mock RFID Reader**: Test functionality without physical hardware
 
 ## Architecture
 
@@ -29,6 +32,7 @@ The application follows a layered architecture pattern:
 - **Data Access Layer** (`app/models.py`, `app/database.py`): Database models and connection handling
 - **Schema Layer** (`app/schemas.py`): Data validation and serialization/deserialization
 - **Security** (`app/security.py`, `app/auth.py`): Authentication and authorization
+- **RFID Integration** (`app/rfid_listener.py`): Component for interfacing with network-accessible RFID readers
 - **RFID Bridge** (`serial_portRead/bridge.py`): Middleware for non-networked RFID readers
 
 ## Tech Stack
@@ -42,6 +46,7 @@ The application follows a layered architecture pattern:
 - **Docker**: Containerization
 - **SQLAdmin**: Admin interface
 - **Arduino/ESP**: RFID hardware integration
+- **Flask**: Used for mock RFID reader testing
 
 ## Getting Started
 
