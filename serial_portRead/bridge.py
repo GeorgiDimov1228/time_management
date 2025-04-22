@@ -1,179 +1,173 @@
+# time_management/serial_portRead/bridge.py (Modified)
 import serial
-import requests
+import httpx
+import asyncio
 import time
 import sys
 import datetime
-from datetime import timezone # Import timezone
+import os # Import os
+from datetime import timezone
 
 # --- Configuration ---
-# Replace with your Arduino's serial port name
-SERIAL_PORT = '/dev/tty.usbmodem101' # Make sure this is correct for your Mac
+SERIAL_PORT = '/dev/tty.usbmodem101'
 BAUD_RATE = 9600
-# URL for the FastAPI app running on the host (via Docker port mapping)
 API_BASE_URL = "http://localhost:8000/api"
-# Cooldown period in seconds before allowing the NEXT action after ANY previous action
-ACTION_COOLDOWN_SECONDS = 10 # Renamed from CHECKOUT_COOLDOWN_SECONDS
+# --- Credentials Configuration (Use Environment Variables) ---
+BRIDGE_USERNAME = os.getenv("BRIDGE_USERNAME")
+BRIDGE_PASSWORD = os.getenv("BRIDGE_PASSWORD")
 # --- End Configuration ---
 
-def get_employee_status(rfid_tag):
-    """Gets the last event status for the employee."""
-    status_url = f"{API_BASE_URL}/employees/status?rfid={rfid_tag}"
-    print(f"Checking status: GET {status_url}")
-    try:
-        response = requests.get(status_url, timeout=5)
-        if response.status_code == 200:
-            status_data = response.json()
-            print(f"Status Response (200): {status_data}")
-            # Attempt to parse the timestamp string into a datetime object
-            if status_data.get("last_event_time"):
-                try:
-                    ts_str = status_data["last_event_time"].replace('Z', '+00:00')
-                    dt_obj = datetime.datetime.fromisoformat(ts_str)
-                    if dt_obj.tzinfo is None:
-                         dt_obj = dt_obj.replace(tzinfo=timezone.utc)
-                    status_data["last_event_datetime"] = dt_obj
-                except ValueError:
-                    print(f"Warning: Could not parse last_event_time '{status_data['last_event_time']}'")
-                    status_data["last_event_datetime"] = None
-            else:
-                 status_data["last_event_datetime"] = None
-            return status_data
-        elif response.status_code == 404:
-             print("Status Response (404): Employee not found.")
-             return {"error": "not_found"}
-        else:
-            print(f"Status API Error ({response.status_code}): {response.text}")
-            return {"error": "api_error"}
-    except requests.exceptions.RequestException as e:
-        print(f"Status HTTP Request failed: {e}")
-        return {"error": "http_error"}
-    except Exception as e:
-        print(f"An error occurred during status check: {e}")
-        return {"error": "unknown"}
+# Use a single client instance
+client = httpx.AsyncClient(base_url=API_BASE_URL, timeout=10.0)
+# Global variable to store the auth token
+_auth_token = None
+_token_lock = asyncio.Lock() # Lock for token refresh
 
+async def get_auth_token():
+    """Fetches or returns the cached JWT token for the bridge."""
+    global _auth_token
+    async with _token_lock:
+        # Simple check: If we have a token, assume it's valid for now.
+        if _auth_token:
+            return _auth_token
 
-def record_attendance(rfid_tag, action):
-    """Records a check-in or check-out event."""
-    if action not in ["checkin", "checkout"]:
-        print(f"Invalid action: {action}")
-        return
+        if not BRIDGE_USERNAME or not BRIDGE_PASSWORD:
+            print("Bridge ERROR: BRIDGE_USERNAME or BRIDGE_PASSWORD environment variables not set.")
+            return None
 
-    attendance_url = f"{API_BASE_URL}/{action}?rfid={rfid_tag}"
-    print(f"Recording attendance: POST {attendance_url}")
-    try:
-        response = requests.post(attendance_url, timeout=5)
-        if response.status_code == 200:
-            print(f"Attendance Response ({response.status_code}): {response.json()}")
-        elif response.status_code == 404:
-             print(f"Attendance Response (404): Employee not found for {action}.")
-        else:
-            print(f"Attendance API Error ({response.status_code}): {response.text}")
-    except requests.exceptions.RequestException as e:
-        print(f"Attendance HTTP Request failed: {e}")
-    except Exception as e:
-        print(f"An error occurred during attendance recording: {e}")
+        token_url = "/token" # Relative to base_url
+        try:
+            print(f"Bridge: Fetching auth token from {API_BASE_URL}{token_url}")
+            response = await client.post(
+                token_url, # Use relative URL
+                data={"username": BRIDGE_USERNAME, "password": BRIDGE_PASSWORD}
+            )
+            response.raise_for_status()
+            token_data = response.json()
+            _auth_token = token_data.get("access_token")
+            print("Bridge: Successfully obtained auth token.")
+            return _auth_token
+        except httpx.RequestError as e:
+            print(f"Bridge: HTTP error fetching token: {e}")
+        except httpx.HTTPStatusError as e:
+            print(f"Bridge: Failed to fetch token. Status: {e.response.status_code}, Body: {e.response.text}")
+        except Exception as e:
+            print(f"Bridge: Unexpected error fetching token: {e}")
 
+        _auth_token = None
+        return None
 
-def process_rfid_scan(rfid_tag):
-    """Determines action based on status and records attendance, including general cooldown."""
-    # Sanitize the RFID tag
+async def process_rfid_scan(rfid_tag):
+    """Sends the scanned RFID tag to the central API /scan endpoint with auth."""
+    global _auth_token # Use the global token variable
     rfid_tag = rfid_tag.strip()
     if not rfid_tag:
         print("Received empty tag, skipping.")
         return
 
-    print(f"\nProcessing RFID: {rfid_tag}")
-    status_info = get_employee_status(rfid_tag)
-
-    if status_info.get("error") == "not_found":
-        print(f"Cannot process scan: Employee with RFID {rfid_tag} not found in database.")
-        return
-    elif status_info.get("error"):
-        print(f"Cannot process scan due to status check error for RFID {rfid_tag}.")
+    token = await get_auth_token()
+    if not token:
+        print(f"Bridge: Cannot process scan for {rfid_tag}, failed to get auth token.")
         return
 
-    # Get last event details
-    last_event = status_info.get("last_event")
-    last_event_dt = status_info.get("last_event_datetime") # Use the parsed datetime object
+    print(f"\nBridge Processing RFID: {rfid_tag}")
+    scan_url = "/scan" # Relative to base_url
+    headers = {"Authorization": f"Bearer {token}"}
 
-    # --- Add General Cooldown Check ---
-    if last_event_dt: # Check only if there WAS a previous event
-        current_time_utc = datetime.datetime.now(timezone.utc)
-        time_since_last_event = current_time_utc - last_event_dt
-        print(f"Time since last event ('{last_event}' at {last_event_dt}): {time_since_last_event}")
-        # Check if cooldown period has passed
-        if time_since_last_event.total_seconds() < ACTION_COOLDOWN_SECONDS:
-            print(f"Cooldown active: Cannot record new event yet. Need to wait {ACTION_COOLDOWN_SECONDS} seconds since last event.")
-            return # Stop processing, do not record checkin or checkout
+    try:
+        response = await client.post(scan_url, json={"rfid": rfid_tag}, headers=headers)
+
+        if 200 <= response.status_code < 300:
+            print(f"Bridge: Scan processed successfully for {rfid_tag}. Response: {response.json()}")
+        elif response.status_code == 401: # Unauthorized
+            print(f"Bridge: Scan failed for {rfid_tag}. Authorization failed (401). Token might be invalid/expired.")
+            # Invalidate the token
+            async with _token_lock:
+                _auth_token = None
+        elif response.status_code == 404:
+            print(f"Bridge: Scan failed for {rfid_tag}. Employee not found (404).")
+        elif response.status_code == 429:
+             print(f"Bridge: Scan failed for {rfid_tag}. Cooldown active (429).")
         else:
-            print("Cooldown passed.")
-    else:
-        print("No previous event found, proceeding.")
-    # --- End General Cooldown Check ---
+            print(f"Bridge: Scan failed for {rfid_tag}. Status: {response.status_code}, Body: {response.text}")
 
-    # Determine next action based on last event (only if cooldown passed or no previous event)
-    if last_event == "checkin":
-        next_action = "checkout"
-    else: # If last event was 'checkout' or None (first time)
-        next_action = "checkin"
-
-    print(f"Determined next action: '{next_action}'")
-    record_attendance(rfid_tag, next_action)
+    except httpx.RequestError as e:
+        print(f"Bridge: HTTP Request failed for {rfid_tag}: {e}")
+    except Exception as e:
+        print(f"Bridge: An unexpected error occurred during scan processing for {rfid_tag}: {e}")
 
 
-def main():
-    """Main function to read from serial and trigger processing."""
+async def read_serial(ser):
+    """Reads lines from serial asynchronously."""
+    loop = asyncio.get_running_loop()
+    while True:
+        try:
+            line = await loop.run_in_executor(None, ser.readline)
+            if line:
+                rfid_tag_from_serial = line.decode('utf-8', errors='ignore').strip()
+                if rfid_tag_from_serial:
+                     asyncio.create_task(process_rfid_scan(rfid_tag_from_serial))
+                else:
+                    pass # Empty line
+            else:
+                 await asyncio.sleep(0.1)
+
+        except serial.SerialException as e:
+             print(f"Serial error: {e}. Attempting to reconnect...")
+             ser.close()
+             await asyncio.sleep(5)
+             try:
+                 ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+                 print("Reconnected.")
+                 await asyncio.sleep(2)
+             except serial.SerialException as recon_e:
+                 print(f"Reconnect failed: {recon_e}. Retrying in 10s.")
+                 await asyncio.sleep(10)
+        except Exception as e:
+            print(f"Error in serial read loop: {e}")
+            await asyncio.sleep(1) # Prevent rapid error loops
+
+
+async def main():
+    """Main async function to connect and start reading."""
+    # Ensure BRIDGE_USERNAME and BRIDGE_PASSWORD are set
+    if not BRIDGE_USERNAME or not BRIDGE_PASSWORD:
+        print("ERROR: BRIDGE_USERNAME or BRIDGE_PASSWORD environment variables are not set.")
+        print("The bridge cannot authenticate with the API and will exit.")
+        sys.exit(1)
+
     print(f"Attempting to connect to serial port {SERIAL_PORT} at {BAUD_RATE} baud...")
-    # Update note about cooldown
-    print(f"Action cooldown period set to {ACTION_COOLDOWN_SECONDS} seconds.")
 
+    # Attempt initial authentication before starting serial read
+    print("Attempting initial authentication...")
+    initial_token = await get_auth_token()
+    if not initial_token:
+         print("Initial authentication failed. Please check credentials and API status.")
+         # Decide if you want to exit or proceed hoping it works later
+         # sys.exit(1) # Optional: Exit if initial auth fails
+
+    ser = None
     try:
         ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
         print(f"Connected to {SERIAL_PORT}. Waiting for RFID tags...")
-        time.sleep(2)
-
-        while True:
-            try:
-                if ser.in_waiting > 0:
-                    line = ser.readline()
-                    rfid_tag_from_serial = line.decode('utf-8', errors='ignore').strip()
-
-                    if rfid_tag_from_serial:
-                        process_rfid_scan(rfid_tag_from_serial)
-                    else:
-                        pass # Timeout or empty line
-                else:
-                     time.sleep(0.1) # No data waiting
-
-            except serial.SerialException as e:
-                print(f"Serial error: {e}. Attempting to reconnect...")
-                ser.close()
-                time.sleep(5)
-                try:
-                   ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-                   print("Reconnected.")
-                   time.sleep(2)
-                except serial.SerialException as recon_e:
-                   print(f"Reconnect failed: {recon_e}. Retrying in 10s.")
-                   time.sleep(10)
-            except KeyboardInterrupt:
-                print("\nExiting by user request.")
-                break
-            except Exception as e:
-                 print(f"An unexpected error occurred in the loop: {e}")
-                 time.sleep(1) # Prevent rapid error loops
+        await asyncio.sleep(2)
+        await read_serial(ser)
 
     except serial.SerialException as e:
         print(f"Error: Could not open serial port {SERIAL_PORT}.")
         print(f"Details: {e}")
-        sys.exit(1) # Exit if connection fails initially
+        sys.exit(1)
+    except KeyboardInterrupt:
+         print("\nExiting by user request.")
     except Exception as e:
         print(f"An unexpected startup error occurred: {e}")
         sys.exit(1)
     finally:
-        if 'ser' in locals() and ser.is_open:
+        if ser and ser.is_open:
             ser.close()
             print("Serial port closed.")
+        await client.aclose() # Close the httpx client
+        print("HTTP client closed.")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

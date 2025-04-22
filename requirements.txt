@@ -1,5 +1,7 @@
 fastapi
 uvicorn
+gunicorn
+asyncpg
 sqlalchemy
 pydantic[email]
 psycopg2-binary
@@ -10,5 +12,6 @@ python-jose[cryptography]
 python-multipart
 pyserial # Changed from serial for clarity
 requests # Added for the bridge script
+httpx
 sqladmin
 itsdangerous

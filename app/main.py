@@ -1,162 +1,136 @@
-from fastapi import FastAPI
-from app.database import engine, Base, SessionLocal # Added SessionLocal
-from app import models, crud, schemas
-from app.routes import users, attendance # Removed projects if not used
-from app.auth import router as auth_router
+# time_management/app/main.py
 import os
-import datetime 
+import datetime
+import asyncio # Import asyncio for potential future use in startup events
+from fastapi import FastAPI
+from starlette.middleware.sessions import SessionMiddleware
+
+# --- Database Imports ---
+# Import sync engine and session for SQLAdmin and initial setup
+# Import Base for table creation
+# Import AsyncSessionLocal for potential type hinting or future async startup tasks
+from app.database import sync_engine, Base, SyncSessionLocal, AsyncSessionLocal
+# Alias SyncSessionLocal for easier use in create_default_admin
+SessionLocal = SyncSessionLocal
+
+# --- App Component Imports ---
+from app import models, crud, schemas
+from app.routes import users, attendance
+from app.auth import router as auth_router
 
 # --- SQLAdmin Imports ---
 from sqladmin import Admin, ModelView
-from starlette.middleware.sessions import SessionMiddleware
+from app.admin_auth import authentication_backend # Import the custom auth backend
 
-from sqladmin.authentication import AuthenticationBackend
-from starlette.requests import Request
-from starlette.responses import RedirectResponse
-from app.database import engine # Make sure engine is imported
+# --- Database Table Creation ---
+# Create tables using the synchronous engine if they don't exist.
+# NOTE: For production, consider using Alembic migrations instead.
+print("Attempting to create database tables if they don't exist...")
+try:
+    Base.metadata.create_all(bind=sync_engine)
+    print("Table creation check complete.")
+except Exception as e:
+    print(f"Error during table creation check: {e}")
+    # Depending on the error, you might want to exit or handle it differently
 
-# --- End SQLAdmin Imports ---
-
-
-# Create database tables if they don't exist
-Base.metadata.create_all(bind=engine) # SQLAdmin might handle this, or keep it
-
+# --- FastAPI App Initialization ---
 app = FastAPI(title="Time Management API")
-SESSION_SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-for-sessions")
+SESSION_SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-for-sessions") # Ensure SECRET_KEY is set in .env
+if not SESSION_SECRET_KEY:
+    print("WARNING: SECRET_KEY environment variable not set. Using default (unsafe) key.")
+    SESSION_SECRET_KEY = "your-secret-key-for-sessions" # Fallback, but log a warning
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
+
 
 # --- SQLAdmin Setup ---
 
-# Define Admin Views for your models
+# Define Admin Views (keep as previously defined)
 class EmployeeAdmin(ModelView, model=models.Employee):
-    # Columns to display in the list view
     column_list = [models.Employee.id, models.Employee.username, models.Employee.email, models.Employee.rfid, models.Employee.is_admin]
-    column_labels = {
-        models.Employee.id: "Employee ID", # Example: Label for own column
-        models.Employee.username: 'Username',
-        models.Employee.email: 'Email', 
-        models.Employee.rfid: 'RFID',
-        models.Employee.is_admin: 'Admin',
-
-        
-    }
-    # Columns searchable in the list view
+    column_labels = { models.Employee.id: "ID", models.Employee.username: 'Username', models.Employee.email: 'Email', models.Employee.rfid: 'RFID', models.Employee.is_admin: 'Admin' }
     column_searchable_list = [models.Employee.username, models.Employee.rfid, models.Employee.email]
-    # Columns sortable in the list view
     column_sortable_list = [models.Employee.id, models.Employee.username, models.Employee.is_admin, models.Employee.rfid, models.Employee.email]
-    # Columns to exclude from the edit/create forms (hashed_password managed elsewhere)
     form_excluded_columns = [models.Employee.hashed_password, models.Employee.attendance_events]
-    # Optional: Define which columns are visible/editable in the create/edit forms
-    # form_columns = [models.Employee.username, models.Employee.email, models.Employee.rfid, models.Employee.is_admin]
-    column_filters = [models.Employee.username, models.Employee.rfid, models.Employee.email] # Keep relationship here for filtering by employee
-    name = "Employee"
-    name_plural = "Employees"
-    icon = "fa-solid fa-user" # Example icon (requires FontAwesome setup if not default)
+    name = "Employee"; name_plural = "Employees"; icon = "fa-solid fa-user"
 
 class AttendanceEventAdmin(ModelView, model=models.AttendanceEvent):
-    column_list = [
-        models.AttendanceEvent.id,
-        'employee.username', # CORRECTED: Use string notation
-        models.AttendanceEvent.event_type,
-        models.AttendanceEvent.timestamp,
-        models.AttendanceEvent.manual
-    ]
-    column_labels = {
-        models.AttendanceEvent.id: "Event ID", # Example: Label for own column
-        'employee.username': 'Username', # Label for the related column
-        models.AttendanceEvent.event_type: 'Event Type',
-        models.AttendanceEvent.timestamp: 'Timestamp',
-        models.AttendanceEvent.manual: 'Manual Entry'
-
-    }
-    form_excluded_columns = [models.AttendanceEvent.manual]
-    # Format timestamp for the LIST view (hide microseconds)
-    column_formatters = {
-         models.AttendanceEvent.timestamp:
-         lambda m, a: getattr(m, a).strftime("%Y-%m-%d %H:%M:%S") if getattr(m, a) else ""
-    }
-    # --- Add column_formatters_detail to format timestamp display on DETAIL view ---
-    column_formatters_detail = {
-        models.AttendanceEvent.timestamp:
-        # Example: Show full timestamp with microseconds on detail page
-        lambda m, a: getattr(m, a).strftime("%Y-%m-%d %H:%M:%S") if getattr(m, a) else ""
-    }
-    column_sortable_list = [models.AttendanceEvent.id, models.AttendanceEvent.timestamp, models.AttendanceEvent.event_type, 'employee.username', models.AttendanceEvent.manual] # CORRECTED: Use string notation
-    column_searchable_list = [
-        models.AttendanceEvent.event_type,
-        'employee.username' # CORRECTED: Use string notation
-    ]
-
-    # Use STRING notation for related fields in lists
-    column_details_list = [ # Columns shown in the detail view
-         models.AttendanceEvent.id,
-         'employee.username', # CORRECTED: Use string notation
-         models.AttendanceEvent.event_type,
-         models.AttendanceEvent.timestamp,
-         models.AttendanceEvent.manual
-    ]
-    # Filtering usually works on the relationship object itself or specific columns
-    column_filters = [models.AttendanceEvent.event_type, models.AttendanceEvent.manual, models.AttendanceEvent.employee] # Keep relationship here for filtering by employee
-    name = "Attendance Event"
-    name_plural = "Attendance Events"
-    icon = "fa-solid fa-clock"
+    column_list = [ models.AttendanceEvent.id, 'employee.username', models.AttendanceEvent.event_type, models.AttendanceEvent.timestamp, models.AttendanceEvent.manual ]
+    column_labels = { models.AttendanceEvent.id: "ID", 'employee.username': 'Username', models.AttendanceEvent.event_type: 'Type', models.AttendanceEvent.timestamp: 'Timestamp', models.AttendanceEvent.manual: 'Manual' }
+    form_excluded_columns = [models.AttendanceEvent.manual] # Manual is auto-set
+    column_formatters = { models.AttendanceEvent.timestamp: lambda m, a: getattr(m, a).strftime("%Y-%m-%d %H:%M:%S") if getattr(m, a) else "" }
+    column_formatters_detail = column_formatters # Use same formatters for detail view
+    column_sortable_list = [models.AttendanceEvent.id, models.AttendanceEvent.timestamp, models.AttendanceEvent.event_type, 'employee.username', models.AttendanceEvent.manual]
+    column_searchable_list = [ models.AttendanceEvent.event_type, 'employee.username' ]
+    column_details_list = [ models.AttendanceEvent.id, 'employee.username', models.AttendanceEvent.event_type, models.AttendanceEvent.timestamp, models.AttendanceEvent.manual ]
+    column_filters = [models.AttendanceEvent.event_type, models.AttendanceEvent.manual, models.AttendanceEvent.employee]
+    name = "Attendance"; name_plural = "Attendance"; icon = "fa-solid fa-clock"
 
 
-# --- Authentication Backend (Placeholder - will define below) ---
-
-from app.admin_auth import authentication_backend
-# --- Admin Instance (will be modified later) ---
-admin = Admin(app=app, engine=engine, authentication_backend=authentication_backend) # We will add authentication_backend here
-
-
+# Initialize Admin with the synchronous engine and authentication backend
+admin = Admin(app=app, engine=sync_engine, authentication_backend=authentication_backend)
 
 # Register Admin Views
 admin.add_view(EmployeeAdmin)
 admin.add_view(AttendanceEventAdmin)
 
-# --- End SQLAdmin Setup ---
+# --- Include API Routers ---
+# Note the dependencies used within each router (sync vs async)
+app.include_router(auth_router, prefix="/api")       # Uses sync get_db
+app.include_router(users.router, prefix="/api")       # Uses async get_async_db
+app.include_router(attendance.router, prefix="/api")  # Uses async get_async_db
 
 
-# Include API routers (AFTER Admin setup if admin uses same path prefix potentially)
-app.include_router(auth_router, prefix="/api") # Token endpoint at /api/token
-app.include_router(users.router, prefix="/api") # Prefixed with /api/users
-app.include_router(attendance.router, prefix="/api") # Prefixed with /api/attendance
-
-
-# Create a default admin user if none exists (Keep this logic)
+# --- Default Admin User Creation ---
 def create_default_admin():
-    # Use SessionLocal for database operations outside requests
-    db = SessionLocal()
+    """
+    Creates a default admin user on first startup if one doesn't exist.
+    Uses SYNCHRONOUS database operations by calling specifically named sync CRUD functions.
+    """
+    db = SessionLocal() # Use the synchronous session
     try:
-        admin_user = crud.get_employee_by_username(db, "admin")
+        print("Checking for default admin user...")
+        # Call the SYNCHRONOUS version explicitly
+        admin_user = crud.get_employee_by_username_sync(db, os.getenv("DEFAULT_ADMIN_USERNAME", "admin"))
         if not admin_user:
             default_username = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
             default_email = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@example.com")
             default_password = os.getenv("DEFAULT_ADMIN_PASSWORD", "adminpassword")
 
+            if not default_password:
+                 print("ERROR: DEFAULT_ADMIN_PASSWORD is not set in the environment. Cannot create admin user.")
+                 db.close() # Close session before returning
+                 return
+
             admin_data = schemas.EmployeeCreate(
                 username=default_username,
                 email=default_email,
-                rfid="DEFAULT_ADMIN_RFID", # Assign a default RFID if needed
+                rfid="DEFAULT_ADMIN_RFID", # Assign a unique default RFID
                 password=default_password,
                 is_admin=True
             )
-            print("Attempting to create default admin user...")
-            created_user = crud.create_employee(db=db, employee=admin_data)
+            print(f"Default admin user '{default_username}' not found. Attempting to create...")
+            # Call the SYNCHRONOUS version explicitly
+            created_user = crud.create_employee_sync(db=db, employee=admin_data)
             if created_user:
-                 print(f"Default admin user '{created_user.username}' created.")
+                 print(f"Default admin user '{created_user.username}' created successfully.")
             else:
-                 print("Failed to create default admin user.") # Should not happen unless DB error
+                 print("Failed to create default admin user (sync crud function might have returned None).")
         else:
-            print("Admin user already exists.")
+            print(f"Default admin user '{admin_user.username}' already exists.")
     except Exception as e:
-        print(f"Error during default admin creation: {e}")
+        # Catch potential errors during the sync operation
+        print(f"An unexpected error occurred during default admin creation: {e}")
     finally:
-        db.close()
+        # Ensure the synchronous session is always closed
+        if db:
+            db.close()
 
-# Call the function on startup
-# Consider running this in an explicit startup event if needed
-# @app.on_event("startup")
-# async def startup_event():
-#     create_default_admin()
-create_default_admin() # Call directly for now
+# --- Run Startup Tasks ---
+print("Running startup tasks...")
+create_default_admin()
+print("Startup tasks complete.")
+
+# --- Optional: Add root endpoint for basic check ---
+@app.get("/")
+async def read_root():
+    return {"message": "Time Management API is running"}

@@ -13,7 +13,11 @@ class Employee(Base):
     hashed_password = Column(String)  # For admin login
     is_admin = Column(Boolean, default=False)  # New field
 
-    attendance_events = relationship("AttendanceEvent", back_populates="employee")
+    attendance_events = relationship(
+        "AttendanceEvent",
+        back_populates="employee",
+        cascade="all, delete-orphan" # Add this line
+    )
 
     def __str__(self):
         # Return a user-friendly string representation
@@ -26,7 +30,9 @@ class AttendanceEvent(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
     event_type = Column(String, index=True)  # "checkin" or "checkout"
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    # timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
     manual = Column(Boolean, default=True)
 
     employee = relationship("Employee", back_populates="attendance_events")
