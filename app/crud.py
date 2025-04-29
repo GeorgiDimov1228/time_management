@@ -94,7 +94,6 @@ async def create_employee(db: AsyncSession, employee: schemas.EmployeeCreate): #
     await db.refresh(db_employee)
     return db_employee
 
-# ... (keep other async functions like update_employee, delete_employee, update_password, attendance functions) ...
 
 async def update_employee(db: AsyncSession, user_id: int, employee_update: schemas.EmployeeCreate):
     db_employee = await get_employee(db, user_id) # Calls async get_employee
