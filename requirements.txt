@@ -13,5 +13,6 @@ python-multipart
 pyserial # Changed from serial for clarity
 requests # Added for the bridge script
 httpx
-sqladmin
+# sqladmin
+starlette-admin[sqla]
 itsdangerous
