@@ -21,6 +21,10 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token") # Adjusted path relative to frontend
 
+def get_password_hash(password: str) -> str:
+    """Generate a password hash from a plaintext password"""
+    return pwd_context.hash(password)
+
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     if expires_delta is not None:
@@ -82,10 +86,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         headers={"WWW-Authenticate": "Bearer"},
     )
     user_id = verify_token(token, credentials_exception)
-    # Use the synchronous crud function (assuming you might keep one or need a bridge)
-    # If crud is fully async, this sync version needs adjustment or removal.
-    # For now, assume a sync get_employee exists or is needed elsewhere.
-    user = crud.get_employee(db, user_id=user_id) # THIS NEEDS a SYNC crud.get_employee
+    # Use the synchronous crud function
+    user = crud.get_employee_sync(db, user_id=user_id)
     if user is None:
         raise credentials_exception
     return user
