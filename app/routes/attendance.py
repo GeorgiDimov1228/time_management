@@ -25,6 +25,8 @@ async def process_rfid_scan( # Make async
         raise HTTPException(status_code=400, detail="RFID tag cannot be empty")
 
     print(f"\nProcessing direct scan request for RFID: {rfid_tag} by user: {current_user.username}")
+    # print(f"\nProcessing direct scan request for RFID: {rfid_tag} ")
+
 
     # Use await with async CRUD functions
     employee = await crud.get_employee_by_rfid(db, rfid_tag)
