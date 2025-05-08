@@ -1,0 +1,133 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Export CSV - Time Management Admin{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Export Attendance Data</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Export Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form id="exportForm" action="/api/export/csv" method="get" target="_blank">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="start_date" class="form-label">Start Date</label>
+                            <input type="text" class="form-control date-picker" id="start_date" name="start_date" 
+                                placeholder="Select date & time">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_date" class="form-label">End Date</label>
+                            <input type="text" class="form-control date-picker" id="end_date" name="end_date" 
+                                placeholder="Select date & time">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="event_type" class="form-label">Event Type</label>
+                            <select class="form-select" id="event_type" name="event_type">
+                                <option value="">All</option>
+                                <option value="checkin">Check In</option>
+                                <option value="checkout">Check Out</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" name="username" 
+                                placeholder="Filter by username">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="user_id" class="form-label">User ID</label>
+                            <input type="number" class="form-control" id="user_id" name="user_id" 
+                                placeholder="Filter by user ID">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="manual" class="form-label">Manual Entry</label>
+                            <select class="form-select" id="manual" name="manual">
+                                <option value="">All</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12 mt-4">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-download me-1"></i> Download CSV
+                            </button>
+                            <button type="reset" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i> Reset Form
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Export Information</h5>
+            </div>
+            <div class="card-body">
+                <h6 class="card-subtitle mb-3 text-muted">About CSV Exports</h6>
+                <p>CSV exports include the following fields:</p>
+                <ul>
+                    <li>Event ID</li>
+                    <li>User ID</li>
+                    <li>Username</li>
+                    <li>Event Type (checkin/checkout)</li>
+                    <li>Timestamp</li>
+                    <li>Manual flag (Yes/No)</li>
+                </ul>
+                <hr>
+                <h6 class="mb-3">Quick Exports</h6>
+                <div class="d-grid gap-2">
+                    <a href="/api/export/csv?start_date={{ today_start }}&end_date={{ today_end }}" class="btn btn-outline-primary btn-sm" target="_blank">
+                        <i class="fas fa-calendar-day me-1"></i> Today's Attendance
+                    </a>
+                    <a href="/api/export/csv?start_date={{ week_start }}&end_date={{ week_end }}" class="btn btn-outline-primary btn-sm" target="_blank">
+                        <i class="fas fa-calendar-week me-1"></i> This Week's Attendance
+                    </a>
+                    <a href="/api/export/csv?start_date={{ month_start }}&end_date={{ month_end }}" class="btn btn-outline-primary btn-sm" target="_blank">
+                        <i class="fas fa-calendar-alt me-1"></i> This Month's Attendance
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize datetime pickers
+        flatpickr(".date-picker", {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i",
+            time_24hr: true
+        });
+
+        // Form validation before submit
+        document.getElementById('exportForm').addEventListener('submit', function(e) {
+            // Optionally add validation logic here
+            // For example, require at least one filter to be set
+            
+            // Show user feedback
+            const downloadBtn = this.querySelector('button[type="submit"]');
+            downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
+            setTimeout(() => {
+                downloadBtn.innerHTML = '<i class="fas fa-download me-1"></i> Download CSV';
+            }, 3000);
+        });
+    });
+</script>
+{% endblock %} 

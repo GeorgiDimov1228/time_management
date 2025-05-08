@@ -93,15 +93,24 @@ async def create_employee(db: AsyncSession, employee: schemas.EmployeeCreate):
     return db_employee
 
 
-async def update_employee(db: AsyncSession, user_id: int, employee_update: schemas.EmployeeCreate):
-    db_employee = await get_employee(db, user_id) 
-    if not db_employee: return None
-    update_data = employee_update.model_dump(exclude_unset=True)
+async def update_employee(db: AsyncSession, employee_id: int, employee: schemas.EmployeeUpdate):
+    db_employee = await get_employee(db, user_id=employee_id) 
+    if not db_employee:
+        return None
+    
+    update_data = employee.model_dump(exclude_unset=True)
+    
+    # Handle password separately
     if 'password' in update_data and update_data['password']:
         update_data['hashed_password'] = pwd_context.hash(update_data['password'])
         del update_data['password']
-    elif 'password' in update_data: del update_data['password']
-    for key, value in update_data.items(): setattr(db_employee, key, value)
+    elif 'password' in update_data:
+        del update_data['password']
+    
+    # Update fields
+    for key, value in update_data.items():
+        setattr(db_employee, key, value)
+    
     await db.commit()
     await db.refresh(db_employee)
     return db_employee

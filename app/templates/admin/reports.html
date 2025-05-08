@@ -1,0 +1,118 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Reports - Time Management Admin{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Attendance Reports</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Generate Attendance Report</h5>
+            </div>
+            <div class="card-body">
+                <form id="reportForm" action="/api/admin/report" method="get" target="_blank">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="start_date" class="form-label fw-bold">Start Date <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control date-picker" id="start_date" name="start_date" 
+                                placeholder="Select date & time" required>
+                            <div class="form-text">Required field</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_date" class="form-label fw-bold">End Date <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control date-picker" id="end_date" name="end_date" 
+                                placeholder="Select date & time" required>
+                            <div class="form-text">Required field</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="include_details" class="form-label">Include Detailed Entries</label>
+                            <select class="form-select" id="include_details" name="include_details">
+                                <option value="true" selected>Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                            <div class="form-text">Include individual attendance records in the report</div>
+                        </div>
+                        <div class="col-md-12 mt-4">
+                            <button type="submit" class="btn btn-info">
+                                <i class="fas fa-file-alt me-1"></i> Generate Report
+                            </button>
+                            <button type="reset" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i> Reset Form
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">About Reports</h5>
+            </div>
+            <div class="card-body">
+                <h6 class="card-subtitle mb-3 text-muted">Report Features</h6>
+                <p>Attendance reports provide:</p>
+                <ul>
+                    <li>Summary of attendance by employee</li>
+                    <li>Total days present</li>
+                    <li>Total working hours</li>
+                    <li>Detailed attendance records (optional)</li>
+                </ul>
+                <hr>
+                <h6 class="mb-3">Quick Reports</h6>
+                <div class="d-grid gap-2">
+                    <a href="/api/admin/report?start_date={{ week_start }}&end_date={{ week_end }}&include_details=true" class="btn btn-outline-info btn-sm" target="_blank">
+                        <i class="fas fa-calendar-week me-1"></i> This Week's Report
+                    </a>
+                    <a href="/api/admin/report?start_date={{ month_start }}&end_date={{ month_end }}&include_details=true" class="btn btn-outline-info btn-sm" target="_blank">
+                        <i class="fas fa-calendar-alt me-1"></i> This Month's Report
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize datetime pickers
+        flatpickr(".date-picker", {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i",
+            time_24hr: true
+        });
+
+        // Form validation and feedback
+        document.getElementById('reportForm').addEventListener('submit', function(e) {
+            const startDate = document.getElementById('start_date').value;
+            const endDate = document.getElementById('end_date').value;
+            
+            if (!startDate || !endDate) {
+                e.preventDefault();
+                alert('Please select both start and end dates.');
+                return false;
+            }
+            
+            // Show user feedback
+            const generateBtn = this.querySelector('button[type="submit"]');
+            generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
+            setTimeout(() => {
+                generateBtn.innerHTML = '<i class="fas fa-file-alt me-1"></i> Generate Report';
+            }, 3000);
+        });
+    });
+</script>
+{% endblock %} 

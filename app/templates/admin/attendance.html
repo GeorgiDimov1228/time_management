@@ -1,0 +1,130 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Attendance - Time Management Admin{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Attendance Records</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="/admin/filtered-attendance" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-filter me-1"></i> Advanced Filtering
+            </a>
+            <a href="/api/export/csv" class="btn btn-sm btn-outline-secondary" target="_blank">
+                <i class="fas fa-download me-1"></i> Export All
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4 shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0">Quick Filters</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="d-grid gap-2">
+                    <a href="/admin/attendance?date_range=today" class="btn btn-outline-primary btn-sm {% if date_range == 'today' %}active{% endif %}">
+                        <i class="fas fa-calendar-day me-2"></i> Today
+                    </a>
+                    <a href="/admin/attendance?date_range=yesterday" class="btn btn-outline-primary btn-sm {% if date_range == 'yesterday' %}active{% endif %}">
+                        <i class="fas fa-calendar-day me-2"></i> Yesterday
+                    </a>
+                    <a href="/admin/attendance?date_range=week" class="btn btn-outline-primary btn-sm {% if date_range == 'week' %}active{% endif %}">
+                        <i class="fas fa-calendar-week me-2"></i> This Week
+                    </a>
+                    <a href="/admin/attendance?date_range=month" class="btn btn-outline-primary btn-sm {% if date_range == 'month' %}active{% endif %}">
+                        <i class="fas fa-calendar-alt me-2"></i> This Month
+                    </a>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="d-grid gap-2">
+                    <a href="/admin/attendance?event_type=checkin" class="btn btn-outline-success btn-sm {% if event_type == 'checkin' %}active{% endif %}">
+                        <i class="fas fa-sign-in-alt me-2"></i> Check-ins Only
+                    </a>
+                    <a href="/admin/attendance?event_type=checkout" class="btn btn-outline-danger btn-sm {% if event_type == 'checkout' %}active{% endif %}">
+                        <i class="fas fa-sign-out-alt me-2"></i> Check-outs Only
+                    </a>
+                    <a href="/admin/attendance?manual=true" class="btn btn-outline-warning btn-sm {% if manual == 'true' %}active{% endif %}">
+                        <i class="fas fa-user-edit me-2"></i> Manual Entries Only
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between">
+        <h5 class="mb-0">Attendance Records</h5>
+        {% if filtered %}
+        <a href="/admin/attendance" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-times me-1"></i> Clear Filters
+        </a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover datatable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Employee</th>
+                        <th>Event Type</th>
+                        <th>Timestamp</th>
+                        <th>Manual</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events %}
+                    <tr>
+                        <td>{{ event.id }}</td>
+                        <td>{{ event.employee.username }}</td>
+                        <td>
+                            {% if event.event_type == 'checkin' %}
+                            <span class="badge bg-success">Check In</span>
+                            {% else %}
+                            <span class="badge bg-danger">Check Out</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>
+                            {% if event.manual %}
+                            <span class="badge bg-warning text-dark">Yes</span>
+                            {% else %}
+                            <span class="badge bg-info">No</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if events|length == 0 %}
+        <div class="alert alert-info mt-3">
+            <i class="fas fa-info-circle me-2"></i> No attendance records found.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize datetime pickers
+        flatpickr(".date-picker", {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i",
+            time_24hr: true
+        });
+    });
+</script>
+{% endblock %} 
