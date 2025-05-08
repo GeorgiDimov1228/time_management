@@ -14,9 +14,9 @@ router = APIRouter(
 )
 
 @router.post("/scan", response_model=schemas.AttendanceEventResponse)
-async def process_rfid_scan( # Make async
+async def process_rfid_scan( 
     scan_data: schemas.RFIDScanRequest,
-    db: AsyncSession = Depends(get_async_db), # Use async db
+    db: AsyncSession = Depends(get_async_db),
     # Use the async version of get_current_authenticated_user (defined in step 5)
     current_user: models.Employee = Depends(security.get_current_authenticated_user_async)
 ):
@@ -28,7 +28,6 @@ async def process_rfid_scan( # Make async
     # print(f"\nProcessing direct scan request for RFID: {rfid_tag} ")
 
 
-    # Use await with async CRUD functions
     employee = await crud.get_employee_by_rfid(db, rfid_tag)
     if not employee:
         print(f"Employee not found for RFID: {rfid_tag}")
@@ -64,7 +63,6 @@ async def process_rfid_scan( # Make async
         timestamp=datetime.now(timezone.utc),
         manual=False
     )
-    # Use await with async CRUD function
     new_event = await crud.create_attendance_event(db, new_event_data)
     print(f"Successfully recorded '{next_action}' for {rfid_tag}")
 
@@ -75,8 +73,7 @@ async def process_rfid_scan( # Make async
 async def get_employee_status(rfid: str,
                               db: AsyncSession = Depends(get_async_db),
                               authenticated_user: models.Employee = Depends(security.get_current_authenticated_user_async)
-): # Make async
-    # Use await with async CRUD functions
+):
     employee = await crud.get_employee_by_rfid(db, rfid)
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
@@ -93,13 +90,11 @@ async def get_employee_status(rfid: str,
     }
 
 @router.post("/checkin", response_model=schemas.AttendanceEventResponse)
-async def check_in( # Make async
+async def check_in( 
     rfid: str,
-    db: AsyncSession = Depends(get_async_db), # Use async db
-    # Use the async version of get_current_admin_user (defined in step 5)
+    db: AsyncSession = Depends(get_async_db), 
     current_admin: models.Employee = Depends(security.get_current_admin_user_async)
 ):
-    # Use await with async CRUD functions
     employee = await crud.get_employee_by_rfid(db, rfid)
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
@@ -112,26 +107,22 @@ async def check_in( # Make async
         timestamp=datetime.now(timezone.utc),
         manual=True
     )
-    # Use await with async CRUD function
     event = await crud.create_attendance_event(db, event_data)
     return event
 
 @router.get("/checkin", response_model=List[schemas.AttendanceEventResponse])
 async def get_checkins(db: AsyncSession = Depends(get_async_db), authenticated_user: models.Employee = Depends(security.get_current_authenticated_user_async)
-): # Make async
-     # Use await with async CRUD function
+): 
     events = await crud.get_checkin_events(db)
     return events
 
 
 @router.post("/checkout", response_model=schemas.AttendanceEventResponse)
-async def check_out( # Make async
+async def check_out( 
     rfid: str,
-    db: AsyncSession = Depends(get_async_db), # Use async db
-     # Use the async version of get_current_admin_user (defined in step 5)
+    db: AsyncSession = Depends(get_async_db), 
     current_admin: models.Employee = Depends(security.get_current_admin_user_async)
 ):
-    # Use await with async CRUD functions
     employee = await crud.get_employee_by_rfid(db, rfid)
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
@@ -144,13 +135,12 @@ async def check_out( # Make async
         timestamp=datetime.now(timezone.utc),
         manual=True
     )
-    # Use await with async CRUD function
+
     event = await crud.create_attendance_event(db, event_data)
     return event
 
 @router.get("/checkout", response_model=List[schemas.AttendanceEventResponse])
 async def get_checkouts(db: AsyncSession = Depends(get_async_db), authenticated_user: models.Employee = Depends(security.get_current_authenticated_user_async)
-): # Make async
-    # Use await with async CRUD function
+): 
     events = await crud.get_checkout_events(db)
     return events

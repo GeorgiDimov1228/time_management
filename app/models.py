@@ -21,7 +21,6 @@ class Employee(Base):
 
     def __str__(self):
         # Return a user-friendly string representation
-        # You can customize this, e.g., return just self.username
         return f"{self.username} (RFID: {self.rfid})" 
 
 class AttendanceEvent(Base):

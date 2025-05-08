@@ -75,9 +75,9 @@ admin.add_view(AttendanceEventAdmin)
 
 # --- Include API Routers ---
 # Note the dependencies used within each router (sync vs async)
-app.include_router(auth_router, prefix="/api")       # Uses sync get_db
-app.include_router(users.router, prefix="/api")       # Uses async get_async_db
-app.include_router(attendance.router, prefix="/api")  # Uses async get_async_db
+app.include_router(auth_router, prefix="/api")       
+app.include_router(users.router, prefix="/api")       
+app.include_router(attendance.router, prefix="/api")  
 
 
 # --- Default Admin User Creation ---

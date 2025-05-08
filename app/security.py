@@ -6,11 +6,11 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session # Keep for sync version if needed
-from sqlalchemy.ext.asyncio import AsyncSession # Import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession 
 from dotenv import load_dotenv
 
 from app import crud, models
-from app.database import get_db, get_async_db # Import both sync and async getter
+from app.database import get_db, get_async_db 
 
 load_dotenv()
 
@@ -19,7 +19,7 @@ ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token") # Adjusted path relative to frontend
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token") 
 
 def get_password_hash(password: str) -> str:
     """Generate a password hash from a plaintext password"""
@@ -59,7 +59,7 @@ async def get_current_user_async(token: str = Depends(oauth2_scheme), db: AsyncS
         headers={"WWW-Authenticate": "Bearer"},
     )
     user_id = verify_token(token, credentials_exception)
-    user = await crud.get_employee(db, user_id=user_id) # Await the async crud function
+    user = await crud.get_employee(db, user_id=user_id) 
     if user is None:
         raise credentials_exception
     return user
@@ -76,7 +76,7 @@ async def get_current_authenticated_user_async(current_user: models.Employee = D
      return current_user
 
 
-# --- Sync Dependency Functions (Keep if needed for sync parts like /token or admin panel) ---
+# --- Sync Dependency Functions (Kept if needed for sync parts like /token or admin panel) ---
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> models.Employee:
     """ Dependency to get the current user from token (sync version). """
@@ -86,7 +86,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         headers={"WWW-Authenticate": "Bearer"},
     )
     user_id = verify_token(token, credentials_exception)
-    # Use the synchronous crud function
     user = crud.get_employee_sync(db, user_id=user_id)
     if user is None:
         raise credentials_exception

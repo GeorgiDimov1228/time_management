@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/time_management_db")
-# Ensure the DATABASE_URL starts with postgresql+asyncpg://
+
 ASYNC_DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 
 # --- Async Setup ---
@@ -18,12 +18,10 @@ AsyncSessionLocal = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False
 )
-
-# --- Sync Setup (Keep for SQLAdmin or other sync parts if needed) ---
+# --- Sync Setup ---
 sync_engine = create_engine(DATABASE_URL, echo=False)
 SyncSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
 
-# Base remains the same
 Base = declarative_base()
 
 # --- Async Dependency ---
