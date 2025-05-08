@@ -21,6 +21,18 @@
     </div>
 </div>
 
+{% if request.query_params.get('success') %}
+<div class="alert alert-success">
+    {{ request.query_params.get('success') }}
+</div>
+{% endif %}
+
+{% if request.query_params.get('error') %}
+<div class="alert alert-danger">
+    {{ request.query_params.get('error') }}
+</div>
+{% endif %}
+
 <div class="card mb-4 shadow-sm">
     <div class="card-header">
         <h5 class="mb-0">Quick Filters</h5>
@@ -79,6 +91,8 @@
                         <th>Event Type</th>
                         <th>Timestamp</th>
                         <th>Manual</th>
+                        <th>Notes</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -100,6 +114,12 @@
                             {% else %}
                             <span class="badge bg-info">No</span>
                             {% endif %}
+                        </td>
+                        <td>{{ event.notes if event.notes else '' }}</td>
+                        <td>
+                            <a href="/admin/attendance/{{ event.id }}/edit" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
                         </td>
                     </tr>
                     {% endfor %}

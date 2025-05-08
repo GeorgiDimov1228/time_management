@@ -1,0 +1,122 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Edit Attendance Record - Time Management Admin{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Edit Attendance Record</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="/admin/attendance" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to Attendance
+        </a>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success">
+    {{ success }}
+</div>
+{% endif %}
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0">Attendance Record Details</h5>
+    </div>
+    <div class="card-body">
+        <form method="post" action="/admin/attendance/{{ event.id }}/edit">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="user_id" class="form-label">Employee <span class="text-danger">*</span></label>
+                    <select class="form-select" id="user_id" name="user_id" required>
+                        {% for employee in employees %}
+                        <option value="{{ employee.id }}" {% if employee.id == event.user_id %}selected{% endif %}>
+                            {{ employee.username }} ({{ employee.email }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="event_type" class="form-label">Event Type <span class="text-danger">*</span></label>
+                    <select class="form-select" id="event_type" name="event_type" required>
+                        <option value="checkin" {% if event.event_type == 'checkin' %}selected{% endif %}>Check In</option>
+                        <option value="checkout" {% if event.event_type == 'checkout' %}selected{% endif %}>Check Out</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="timestamp" class="form-label">Timestamp <span class="text-danger">*</span></label>
+                    <input type="datetime-local" class="form-control date-picker" id="timestamp" name="timestamp" value="{{ event.timestamp.strftime('%Y-%m-%dT%H:%M') }}" required>
+                </div>
+                <div class="col-md-6">
+                    <label for="manual" class="form-label">Manual Entry</label>
+                    <select class="form-select" id="manual" name="manual">
+                        <option value="true" {% if event.manual %}selected{% endif %}>Yes</option>
+                        <option value="false" {% if not event.manual %}selected{% endif %}>No</option>
+                    </select>
+                </div>
+                <div class="col-md-12">
+                    <label for="notes" class="form-label">Notes</label>
+                    <input type="text" class="form-control" id="notes" name="notes" value="{{ event.notes or '' }}">
+                    <div class="form-text">Optional notes about this attendance record.</div>
+                </div>
+                <div class="col-12 mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i> Update Record
+                    </button>
+                    <a href="/admin/attendance" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i> Cancel
+                    </a>
+                    <button type="button" class="btn btn-danger float-end" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                        <i class="fas fa-trash-alt me-1"></i> Delete Record
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this attendance record?</p>
+                <p class="text-danger">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="/admin/attendance/{{ event.id }}/delete" method="post">
+                    <button type="submit" class="btn btn-danger">Delete Record</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize datetime picker
+        flatpickr(".date-picker", {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i",
+            time_24hr: true
+        });
+    });
+</script>
+{% endblock %} 

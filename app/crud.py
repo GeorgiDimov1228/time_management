@@ -6,6 +6,7 @@ from sqlalchemy.future import select as future_select # If using SQLAlchemy < 2.
 from app import models, schemas
 from passlib.context import CryptContext
 from datetime import datetime
+from sqlalchemy.orm import selectinload
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -159,7 +160,7 @@ async def get_filtered_attendance_events(
     manual: bool = None
 ):
     """Get attendance events with filters applied"""
-    query = select(models.AttendanceEvent).join(models.Employee)
+    query = select(models.AttendanceEvent).options(selectinload(models.AttendanceEvent.employee)).join(models.Employee)
     
     # Build filter conditions
     conditions = []
@@ -191,3 +192,37 @@ async def get_filtered_attendance_events(
     
     result = await db.execute(query)
     return result.scalars().all()
+
+async def get_attendance_event(db: AsyncSession, event_id: int):
+    """Get a single attendance event by ID"""
+    query = select(models.AttendanceEvent).options(
+        selectinload(models.AttendanceEvent.employee)
+    ).filter(models.AttendanceEvent.id == event_id)
+    
+    result = await db.execute(query)
+    return result.scalars().first()
+
+async def update_attendance_event(db: AsyncSession, event_id: int, event_data: dict):
+    """Update an attendance event"""
+    # Get the existing event
+    event = await get_attendance_event(db, event_id)
+    if not event:
+        return None
+    
+    # Update fields
+    for key, value in event_data.items():
+        setattr(event, key, value)
+    
+    await db.commit()
+    await db.refresh(event)
+    return event
+
+async def delete_attendance_event(db: AsyncSession, event_id: int):
+    """Delete an attendance event"""
+    event = await get_attendance_event(db, event_id)
+    if not event:
+        return None
+    
+    await db.delete(event)
+    await db.commit()
+    return event

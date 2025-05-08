@@ -511,7 +511,7 @@ async def delete_employee(
     
     # Delete employee
     try:
-        await crud.delete_employee(db=db, employee_id=employee_id)
+        await crud.delete_employee(db=db, user_id=employee_id)
         return RedirectResponse(
             url="/admin/employees?success=Employee deleted successfully",
             status_code=status.HTTP_302_FOUND
@@ -647,7 +647,8 @@ async def manual_check_submit(
             user_id=user_id,
             event_type=event_type,
             timestamp=timestamp,
-            manual=True
+            manual=True,
+            notes=notes if notes else None
         )
         
         created_event = await crud.create_attendance_event(db, event_data=event)
@@ -680,4 +681,127 @@ async def manual_check_submit(
                 "current_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M"),
                 "error": f"Error creating attendance event: {str(e)}"
             }
+        )
+
+# --- Attendance Edit/Delete Routes ---
+
+@router.get("/attendance/{event_id}/edit", response_class=HTMLResponse)
+async def edit_attendance_form(
+    request: Request,
+    event_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    admin_user: models.Employee = Depends(get_current_admin)
+):
+    # Get attendance event
+    event = await crud.get_attendance_event(db, event_id=event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+    
+    # Get all employees for the dropdown
+    result = await db.execute(select(models.Employee))
+    employees = result.scalars().all()
+    
+    return templates.TemplateResponse(
+        "admin/edit_attendance.html",
+        {
+            "request": request,
+            "active_page": "attendance",
+            "event": event,
+            "employees": employees
+        }
+    )
+
+@router.post("/attendance/{event_id}/edit", response_class=HTMLResponse)
+async def update_attendance(
+    request: Request,
+    event_id: int,
+    user_id: int = Form(...),
+    event_type: str = Form(...),
+    timestamp: datetime = Form(...),
+    manual: str = Form(...),
+    notes: str = Form(None),
+    db: AsyncSession = Depends(get_async_db),
+    admin_user: models.Employee = Depends(get_current_admin)
+):
+    # Get attendance event
+    event = await crud.get_attendance_event(db, event_id=event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+    
+    # Validate event type
+    if event_type not in ["checkin", "checkout"]:
+        # Get all employees for the dropdown for re-rendering the form
+        result = await db.execute(select(models.Employee))
+        employees = result.scalars().all()
+        
+        return templates.TemplateResponse(
+            "admin/edit_attendance.html",
+            {
+                "request": request,
+                "active_page": "attendance",
+                "event": event,
+                "employees": employees,
+                "error": "Invalid event type"
+            }
+        )
+    
+    # Convert manual to boolean
+    manual_bool = manual.lower() == "true"
+    
+    # Update event
+    event_data = {
+        "user_id": user_id,
+        "event_type": event_type,
+        "timestamp": timestamp,
+        "manual": manual_bool,
+        "notes": notes if notes else None
+    }
+    
+    try:
+        updated_event = await crud.update_attendance_event(db, event_id, event_data)
+        
+        # Redirect to attendance list with success message
+        return RedirectResponse(
+            url="/admin/attendance?success=Attendance record updated successfully",
+            status_code=status.HTTP_302_FOUND
+        )
+    except Exception as e:
+        # Get all employees for the dropdown for re-rendering the form
+        result = await db.execute(select(models.Employee))
+        employees = result.scalars().all()
+        
+        return templates.TemplateResponse(
+            "admin/edit_attendance.html",
+            {
+                "request": request,
+                "active_page": "attendance",
+                "event": event,
+                "employees": employees,
+                "error": f"Error updating attendance record: {str(e)}"
+            }
+        )
+
+@router.post("/attendance/{event_id}/delete")
+async def delete_attendance(
+    request: Request,
+    event_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    admin_user: models.Employee = Depends(get_current_admin)
+):
+    # Get attendance event
+    event = await crud.get_attendance_event(db, event_id=event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+    
+    # Delete event
+    try:
+        await crud.delete_attendance_event(db, event_id)
+        return RedirectResponse(
+            url="/admin/attendance?success=Attendance record deleted successfully",
+            status_code=status.HTTP_302_FOUND
+        )
+    except Exception as e:
+        return RedirectResponse(
+            url=f"/admin/attendance?error=Error deleting attendance record: {str(e)}",
+            status_code=status.HTTP_302_FOUND
         ) 
