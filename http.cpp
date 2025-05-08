@@ -15,10 +15,9 @@
 MFRC522 rfid(SS_PIN, RST_PIN); // Create MFRC522 instance
 
 // Network credentials
-const char* ssid = "DSTR9";                 // YOUR WIFI SSID
-const char* password = "cvb78ghj!";         // YOUR WIFI PASSWORD
-// Server URL - IMPORTANT: Use your Mac's local network IP address
-const char* serverUrl = "http://192.168.1.59:8000/api/scan";
+const char* ssid = "USERNAME";                 
+const char* password = "PASSS";         
+const char* serverUrl = "http://IPOFSERVER/api/scan";
 
 void setup() {
   Serial.begin(115200); // Initialize serial communication
