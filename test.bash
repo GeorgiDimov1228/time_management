@@ -1,6 +1,3 @@
-
-
-
 # Token Endpoint (Admin Login) with default
 curl -X POST -H "Content-Type: application/x-www-form-urlencoded" \
 -d "username=admin&password=adminpassword" \
@@ -109,3 +106,55 @@ curl -X DELETE -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/users
 
 
 curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"rfid": "123456789"}' http://localhost:8000/api/scan
+
+# Test Attendance Filtering and Export Features
+
+# 1. Get filtered attendance events (no filters - should return all)
+echo "\nTesting basic filtered attendance (no filters):"
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/filtered" | json_pp
+
+# 2. Filter by date range
+echo "\nTesting date range filter:"
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/filtered?start_date=2025-05-06T18:24:27Z&end_date=2025-05-08T12:27:48Z" | json_pp
+
+# 3. Filter by event type
+echo "\nTesting event type filter (checkins only):"
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/filtered?event_type=checkin" | json_pp
+
+# 4. Filter by username
+echo "\nTesting username filter:"
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/filtered?username=admin" | json_pp
+
+# 5. Filter by manual flag
+echo "\nTesting manual flag filter:"
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/filtered?manual=true" | json_pp
+
+# 6. Combined filters
+echo "\nTesting combined filters:"
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8000/api/filtered?start_date=2025-05-06T18:24:27Z&end_date=2025-05-08T12:27:48Z&event_type=checkin&username=admin" | json_pp
+
+# 7. Export filtered data as CSV
+echo "\nTesting CSV export:"
+curl -H "Authorization: Bearer $TOKEN" \
+  -o attendance_export.csv \
+  "http://localhost:8000/api/export/csv?start_date=2025-05-06T18:24:27Z&end_date=2025-05-08T12:27:48Z"
+echo "CSV export saved as attendance_export.csv"
+
+# 8. Admin report (requires admin token)
+echo "\nTesting admin report generation:"
+curl -H "Authorization: Bearer $TOKEN" \
+  -o attendance_report.csv \
+  "http://localhost:8000/api/admin/report?start_date=2025-05-06T18:24:27Z&end_date=2025-05-08T12:27:48Z&include_details=true"
+echo "Admin report saved as attendance_report.csv"
+
+# Display the contents of the exported files
+echo "\nContents of attendance_export.csv:"
+cat attendance_export.csv
+echo "\nContents of attendance_report.csv:"
+cat attendance_report.csv

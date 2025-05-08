@@ -39,6 +39,8 @@ PYTHONPATH=$PYTHONPATH:. pytest tests/ -v
 # Authentication tests
 PYTHONPATH=$PYTHONPATH:. pytest tests/test_auth.py -v
 
+PYTHONPATH=$PYTHONPATH:. pytest tests/test_attendance.py -v
+
 # User management tests
 PYTHONPATH=$PYTHONPATH:. pytest tests/test_users.py -v
 

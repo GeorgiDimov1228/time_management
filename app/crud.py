@@ -1,10 +1,11 @@
 # time_management/app/crud.py
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, and_
 from sqlalchemy.future import select as future_select # If using SQLAlchemy < 2.0 style select with async
 from app import models, schemas
 from passlib.context import CryptContext
+from datetime import datetime
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -137,4 +138,47 @@ async def get_checkin_events(db: AsyncSession):
 
 async def get_checkout_events(db: AsyncSession):
     result = await db.execute(select(models.AttendanceEvent).filter(models.AttendanceEvent.event_type == "checkout"))
+    return result.scalars().all()
+
+async def get_filtered_attendance_events(
+    db: AsyncSession,
+    start_date: datetime = None,
+    end_date: datetime = None,
+    event_type: str = None,
+    user_id: int = None,
+    username: str = None,
+    manual: bool = None
+):
+    """Get attendance events with filters applied"""
+    query = select(models.AttendanceEvent).join(models.Employee)
+    
+    # Build filter conditions
+    conditions = []
+    
+    if start_date:
+        conditions.append(models.AttendanceEvent.timestamp >= start_date)
+    
+    if end_date:
+        conditions.append(models.AttendanceEvent.timestamp <= end_date)
+    
+    if event_type:
+        conditions.append(models.AttendanceEvent.event_type == event_type)
+    
+    if user_id:
+        conditions.append(models.AttendanceEvent.user_id == user_id)
+    
+    if username:
+        conditions.append(models.Employee.username == username)
+    
+    if manual is not None:  # Check if it's explicitly True or False
+        conditions.append(models.AttendanceEvent.manual == manual)
+    
+    # Apply all conditions if any exist
+    if conditions:
+        query = query.filter(and_(*conditions))
+    
+    # Order by timestamp descending (newest first)
+    query = query.order_by(models.AttendanceEvent.timestamp.desc())
+    
+    result = await db.execute(query)
     return result.scalars().all()

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, constr, validator
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 # Scan Schemas
 class RFIDScanRequest(BaseModel):
@@ -41,6 +41,19 @@ class AttendanceEventResponse(AttendanceEventBase):
 
     class Config:
         from_attributes = True
+
+# New schemas for attendance filtering and export
+class AttendanceFilterParams(BaseModel):
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    event_type: Optional[str] = None
+    user_id: Optional[int] = None
+    username: Optional[str] = None
+    manual: Optional[bool] = None
+
+class AttendanceCSVResponse(BaseModel):
+    csv_content: str
+    filename: str
 
 # password
 class PasswordUpdate(BaseModel):
