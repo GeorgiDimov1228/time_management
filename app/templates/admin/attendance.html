@@ -115,9 +115,9 @@
                         <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                         <td>
                             {% if event.manual %}
-                            <span class="badge bg-warning text-dark">Yes</span>
+                            <span class="badge bg-success">Yes</span>
                             {% else %}
-                            <span class="badge bg-info">No</span>
+                            <span class="badge bg-danger">No</span>
                             {% endif %}
                         </td>
                         <td>{{ event.notes if event.notes else '' }}</td>

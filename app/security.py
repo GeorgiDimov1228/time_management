@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session # Keep for sync version if needed
 from sqlalchemy.ext.asyncio import AsyncSession 
@@ -48,6 +48,39 @@ def verify_token(token: str, credentials_exception):
              raise credentials_exception
     except JWTError:
         raise credentials_exception
+
+# --- Cookie-based Authentication ---
+
+async def get_user_from_cookie(request: Request, db: AsyncSession, cookie_name="admin_token", require_admin=False):
+    """Common function to get a user from a cookie token"""
+    token = request.cookies.get(cookie_name)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Not authenticated"
+        )
+    
+    try:
+        credentials_exception = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials"
+        )
+        user_id = verify_token(token, credentials_exception)
+        
+        user = await crud.get_employee(db, user_id=user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        
+        if require_admin and not user.is_admin:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not admin")
+        
+        return user
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+
+async def get_admin_from_cookie(request: Request, db: AsyncSession = Depends(get_async_db)):
+    """Get admin user from cookie token"""
+    return await get_user_from_cookie(request, db, require_admin=True)
 
 # --- Async Dependency Functions ---
 

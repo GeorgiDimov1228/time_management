@@ -49,11 +49,6 @@
                            value="{{ request.query_params.get('username', '') }}" placeholder="Filter by username">
                 </div>
                 <div class="col-md-6 col-lg-3">
-                    <label for="user_id" class="form-label">User ID</label>
-                    <input type="number" class="form-control" id="user_id" name="user_id" 
-                           value="{{ request.query_params.get('user_id', '') }}" placeholder="Filter by user ID">
-                </div>
-                <div class="col-md-6 col-lg-3">
                     <label for="manual" class="form-label">Manual Entry</label>
                     <select class="form-select" id="manual" name="manual">
                         <option value="">All</option>
@@ -106,9 +101,9 @@
                         <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                         <td>
                             {% if event.manual %}
-                            <span class="badge bg-warning text-dark">Yes</span>
+                            <span class="badge bg-success">Yes</span>
                             {% else %}
-                            <span class="badge bg-info">No</span>
+                            <span class="badge bg-danger">No</span>
                             {% endif %}
                         </td>
                     </tr>
