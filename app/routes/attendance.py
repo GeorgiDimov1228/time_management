@@ -443,7 +443,7 @@ async def admin_attendance_report(
     # Add separator and headers for details
     csv_data.append([])  # Empty row as separator
     csv_data.append(['Detailed Entries'])
-    csv_data.append(['Employee', 'Event Type', 'Timestamp'])
+    csv_data.append(['Employee', 'Event Type', 'Timestamp', 'Manual Entry'])
     
     # Sort all events by timestamp
     all_events_sorted = sorted(events, key=lambda e: e.timestamp)
@@ -454,7 +454,8 @@ async def admin_attendance_report(
             csv_data.append([
                 employee_data[event.user_id]["username"],
                 event.event_type,
-                event.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                event.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                "Yes" if event.manual else "No"
             ])
     
     # Generate filename with current timestamp and date range
