@@ -71,9 +71,15 @@ async def get_employee_by_rfid(db: AsyncSession, rfid: str):
     result = await db.execute(select(models.Employee).filter(models.Employee.rfid == rfid))
     return result.scalars().first()
 
-async def get_employee_by_username(db: AsyncSession, username: str): 
-    result = await db.execute(select(models.Employee).filter(models.Employee.username == username))
-    return result.scalars().first()
+async def get_employee_by_username(db, username: str): 
+    """Modified to handle both sync and async sessions"""
+    try:
+        # If it's a synchronous session
+        return db.query(models.Employee).filter(models.Employee.username == username).first()
+    except AttributeError:
+        # Fall back to async approach if needed
+        result = await db.execute(select(models.Employee).filter(models.Employee.username == username))
+        return result.scalars().first()
 
 async def create_employee(db: AsyncSession, employee: schemas.EmployeeCreate): 
     if employee.is_admin and not employee.password:
