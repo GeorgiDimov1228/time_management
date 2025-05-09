@@ -42,14 +42,14 @@ async def process_rfid_scan(
     scan_data: schemas.RFIDScanRequest,
     db: AsyncSession = Depends(get_async_db),
     # Use the async version of get_current_authenticated_user (defined in step 5)
-    current_user: models.Employee = Depends(security.get_current_authenticated_user_async)
+    # current_user: models.Employee = Depends(security.get_current_authenticated_user_async)
 ):
     rfid_tag = scan_data.rfid.strip()
     if not rfid_tag:
         raise HTTPException(status_code=400, detail="RFID tag cannot be empty")
 
-    print(f"\nProcessing direct scan request for RFID: {rfid_tag} by user: {current_user.username}")
-    # print(f"\nProcessing direct scan request for RFID: {rfid_tag} ")
+    # print(f"\nProcessing direct scan request for RFID: {rfid_tag} by user: {current_user.username}")
+    print(f"\nProcessing direct scan request for RFID: {rfid_tag} ")
 
 
     employee = await crud.get_employee_by_rfid(db, rfid_tag)
@@ -205,6 +205,7 @@ async def export_attendance_csv(
     authenticated_user: models.Employee = Depends(security.get_admin_from_cookie)
 ):
     """Export filtered attendance events as CSV"""
+    # Get filtered events
     events = await crud.get_filtered_attendance_events(
         db,
         start_date=start_date,
@@ -215,21 +216,55 @@ async def export_attendance_csv(
         manual=manual
     )
     
-    # Prepare CSV data
+    # Get all employees
+    result = await db.execute(select(models.Employee))
+    employees = result.scalars().all()
+    
+    # Prepare employee statistics
+    employee_data = {}
+    for employee in employees:
+        employee_data[employee.id] = {
+            "username": employee.username,
+            "rfid": employee.rfid,
+            "events": [],
+            "total_days": 0,
+            "total_hours": 0
+        }
+    
+    # Calculate employee statistics
+    calculate_employee_statistics(events, employee_data)
+    
+    # Prepare CSV data with two sections
     csv_data = [
-        # Headers
-        ['ID', 'User ID', 'Username', 'Event Type', 'Timestamp', 'Manual']
+        # First section: Summary with Days Present and Total Hours
+        ['Employee Summary'],
+        ['Employee Name', 'Days Present', 'Total Hours'],
     ]
     
-    # Data rows
-    for event in events:
+    # Add summary rows for each employee
+    for emp_id, data in employee_data.items():
+        # Only include employees with records in the filtered period
+        if data["events"]:
+            csv_data.append([
+                data["username"],
+                data["total_days"],
+                f"{data['total_hours']:.2f}"
+            ])
+    
+    # Add separator between sections
+    csv_data.append([])
+    csv_data.append(['Detailed Attendance Records'])
+    
+    # Add headers for detailed records
+    csv_data.append(['Employee Name', 'Event Type', 'Timestamp'])
+    
+    # Add detailed rows sorted by timestamp
+    sorted_events = sorted(events, key=lambda e: e.timestamp)
+    for event in sorted_events:
         csv_data.append([
-            event.id,
-            event.user_id,
             event.employee.username,
             event.event_type,
-            event.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-            "Yes" if event.manual else "No"
+            event.timestamp.strftime("%Y-%m-%d %H:%M:%S")
         ])
     
     # Generate filename with current timestamp
@@ -244,7 +279,7 @@ async def admin_attendance_report(
     request: Request,
     start_date: datetime = Query(..., description="Report start date (ISO format, required)"),
     end_date: datetime = Query(..., description="Report end date (ISO format, required)"),
-    include_details: bool = Query(True, description="Include detailed entries in report"),
+    username: Optional[str] = Query(None, description="Filter by employee username"),
     db: AsyncSession = Depends(get_async_db),
     admin_user: models.Employee = Depends(security.get_admin_from_cookie)
 ):
@@ -256,16 +291,21 @@ async def admin_attendance_report(
     result = await db.execute(select(models.Employee))
     employees = result.scalars().all()
     
-    # Get all attendance events in date range
+    # Get all attendance events in date range with optional employee filter
     events = await crud.get_filtered_attendance_events(
         db,
         start_date=start_date,
-        end_date=end_date
+        end_date=end_date,
+        username=username
     )
     
     # Process data for report
     employee_data = {}
     for employee in employees:
+        # If username filter is applied, skip other employees
+        if username and employee.username != username:
+            continue
+            
         employee_data[employee.id] = {
             "id": employee.id,
             "username": employee.username,
@@ -281,44 +321,45 @@ async def admin_attendance_report(
     # Prepare CSV data
     csv_data = [
         # Main report headers
-        ['Employee ID', 'Username', 'RFID', 'Days Present', 'Total Hours']
+        ['Username', 'RFID', 'Days Present', 'Total Hours']
     ]
     
     # Write summary data for each employee
     for emp_id, data in employee_data.items():
         csv_data.append([
-            data["id"],
             data["username"],
             data["rfid"],
             data["total_days"],
             f"{data['total_hours']:.2f}"
         ])
     
-    # Add detailed entries if requested
-    if include_details:
-        # Add separator and headers for details
-        csv_data.append([])  # Empty row as separator
-        csv_data.append(['Detailed Entries'])
-        csv_data.append(['ID', 'Employee', 'Event Type', 'Timestamp', 'Manual'])
-        
-        # Sort all events by timestamp
-        all_events_sorted = sorted(events, key=lambda e: e.timestamp)
-        
-        # Add detail rows
-        for event in all_events_sorted:
+    # Add separator and headers for details
+    csv_data.append([])  # Empty row as separator
+    csv_data.append(['Detailed Entries'])
+    csv_data.append(['Employee', 'Event Type', 'Timestamp'])
+    
+    # Sort all events by timestamp
+    all_events_sorted = sorted(events, key=lambda e: e.timestamp)
+    
+    # Add detail rows
+    for event in all_events_sorted:
+        if event.user_id in employee_data:
             csv_data.append([
-                event.id,
-                employee_data[event.user_id]["username"] if event.user_id in employee_data else "Unknown",
+                employee_data[event.user_id]["username"],
                 event.event_type,
-                event.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                "Yes" if event.manual else "No"
+                event.timestamp.strftime("%Y-%m-%d %H:%M:%S")
             ])
     
     # Generate filename with current timestamp and date range
     start_str = start_date.strftime("%Y%m%d")
     end_str = end_date.strftime("%Y%m%d")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"attendance_report_{start_str}_to_{end_str}_{timestamp}.csv"
+    
+    # Add employee name to filename if filtered
+    if username:
+        filename = f"attendance_report_{username}_{start_str}_to_{end_str}_{timestamp}.csv"
+    else:
+        filename = f"attendance_report_{start_str}_to_{end_str}_{timestamp}.csv"
     
     # Return CSV response
     return create_csv_response(csv_data, filename)

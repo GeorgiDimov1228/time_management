@@ -27,6 +27,7 @@
             z-index: 100;
             padding: 48px 0 0;
             box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+            width: 200px; /* Reduced width */
         }
         
         .sidebar-sticky {
@@ -48,6 +49,33 @@
         .main-content {
             padding-top: 1.5rem;
         }
+        
+        /* Compact sidebar styles */
+        .nav-link {
+            padding: 0.5rem 1rem; /* Reduced padding */
+            font-size: 0.9rem; /* Smaller font */
+        }
+        
+        .nav-item {
+            margin-bottom: 0; /* Remove bottom margin */
+        }
+        
+        .nav-item i {
+            width: 20px; /* Fixed width for icons */
+            text-align: center;
+        }
+        
+        /* Add divider between menu items */
+        .sidebar-divider {
+            border-top: 1px solid rgba(0,0,0,.1);
+            margin: 0.5rem 1rem;
+        }
+        
+        /* Adjust content area for smaller sidebar */
+        .sidebar-content-col {
+            margin-left: 200px;
+            width: calc(100% - 200px);
+        }
     </style>
     
     {% block extra_css %}{% endblock %}
@@ -68,49 +96,55 @@
     
     <div class="container-fluid">
         <div class="row">
-            <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+            <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse" style="width: 200px;">
                 <div class="position-sticky pt-3 sidebar-sticky">
                     <ul class="nav flex-column">
                         <li class="nav-item">
                             <a class="nav-link {% if active_page == 'dashboard' %}active{% endif %}" href="/admin">
-                                <i class="fas fa-tachometer-alt me-2"></i> Dashboard
+                                <i class="fas fa-tachometer-alt me-1"></i> Dashboard
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link {% if active_page == 'employees' %}active{% endif %}" href="/admin/employees">
-                                <i class="fas fa-users me-2"></i> Employees
+                                <i class="fas fa-users me-1"></i> Employees
                             </a>
                         </li>
+                        
+                        <div class="sidebar-divider"></div>
+                        
                         <li class="nav-item">
                             <a class="nav-link {% if active_page == 'attendance' %}active{% endif %}" href="/admin/attendance">
-                                <i class="fas fa-clock me-2"></i> Attendance
+                                <i class="fas fa-clock me-1"></i> Attendance
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link {% if active_page == 'manual-check' %}active{% endif %}" href="/admin/manual-check">
-                                <i class="fas fa-user-clock me-2"></i> Manual Check In/Out
+                                <i class="fas fa-user-clock me-1"></i> Manual Check
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link {% if active_page == 'filtered-attendance' %}active{% endif %}" href="/admin/filtered-attendance">
-                                <i class="fas fa-filter me-2"></i> Filtered Attendance
+                                <i class="fas fa-filter me-1"></i> Filtered View
                             </a>
                         </li>
+                        
+                        <div class="sidebar-divider"></div>
+                        
                         <li class="nav-item">
                             <a class="nav-link {% if active_page == 'export-csv' %}active{% endif %}" href="/admin/export-csv">
-                                <i class="fas fa-file-csv me-2"></i> Export CSV
+                                <i class="fas fa-file-csv me-1"></i> Export CSV
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link {% if active_page == 'reports' %}active{% endif %}" href="/admin/reports">
-                                <i class="fas fa-chart-line me-2"></i> Reports
+                                <i class="fas fa-chart-line me-1"></i> Reports
                             </a>
                         </li>
                     </ul>
                 </div>
             </nav>
             
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content sidebar-content-col">
                 {% block content %}{% endblock %}
             </main>
         </div>

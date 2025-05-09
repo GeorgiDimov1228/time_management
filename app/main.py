@@ -50,34 +50,34 @@ app.include_router(attendance.router, prefix="/api")
 app.include_router(admin.router)  # Admin router with custom UI
 
 # --- Schema Updates ---
-def update_schema():
-    """Ensure database schema is up to date with model changes."""
-    print("Checking for schema updates...")
+# def update_schema():
+#     """Ensure database schema is up to date with model changes."""
+#     print("Checking for schema updates...")
     
-    # Use a synchronous connection for schema updates
-    from sqlalchemy import text
-    with sync_engine.connect() as conn:
-        # Check if notes column exists in attendance_events
-        check_query = text("""
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name='attendance_events' AND column_name='notes';
-        """)
+#     # Use a synchronous connection for schema updates
+#     from sqlalchemy import text
+#     with sync_engine.connect() as conn:
+#         # Check if notes column exists in attendance_events
+#         check_query = text("""
+#         SELECT column_name 
+#         FROM information_schema.columns 
+#         WHERE table_name='attendance_events' AND column_name='notes';
+#         """)
         
-        result = conn.execute(check_query)
-        exists = result.scalar() is not None
+#         result = conn.execute(check_query)
+#         exists = result.scalar() is not None
         
-        if not exists:
-            print("Adding 'notes' column to attendance_events table...")
-            add_column_query = text("""
-            ALTER TABLE attendance_events 
-            ADD COLUMN notes TEXT;
-            """)
-            conn.execute(add_column_query)
-            conn.commit()
-            print("Column added successfully.")
-        else:
-            print("Notes column already exists.")
+#         if not exists:
+#             print("Adding 'notes' column to attendance_events table...")
+#             add_column_query = text("""
+#             ALTER TABLE attendance_events 
+#             ADD COLUMN notes TEXT;
+#             """)
+#             conn.execute(add_column_query)
+#             conn.commit()
+#             print("Column added successfully.")
+#         else:
+#             print("Notes column already exists.")
 
 # --- Default Admin User Creation ---
 def create_default_admin():

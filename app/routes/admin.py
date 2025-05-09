@@ -291,6 +291,10 @@ async def filtered_attendance_view(
         
         query_string = urllib.parse.urlencode(params)
     
+    # Fetch all employees for the dropdown
+    result = await db.execute(select(models.Employee))
+    employees = result.scalars().all()
+    
     return templates.TemplateResponse(
         "admin/filtered_attendance.html",
         {
@@ -298,7 +302,8 @@ async def filtered_attendance_view(
             "active_page": "filtered-attendance",
             "events": events,
             "filtered": filtered,
-            "query_string": query_string
+            "query_string": query_string,
+            "employees": employees
         }
     )
 
@@ -311,11 +316,16 @@ async def export_csv_view(
     # Get date ranges for quick export links
     date_ranges = get_date_ranges()
     
+    # Fetch all employees for the dropdown
+    result = await db.execute(select(models.Employee))
+    employees = result.scalars().all()
+    
     return templates.TemplateResponse(
         "admin/export_csv.html",
         {
             "request": request,
             "active_page": "export-csv",
+            "employees": employees,
             **date_ranges
         }
     )
@@ -329,11 +339,16 @@ async def reports_view(
     # Get date ranges for quick report links
     date_ranges = get_date_ranges()
     
+    # Fetch all employees for the dropdown
+    result = await db.execute(select(models.Employee))
+    employees = result.scalars().all()
+    
     return templates.TemplateResponse(
         "admin/reports.html",
         {
             "request": request,
             "active_page": "reports",
+            "employees": employees,
             **date_ranges
         }
     )
@@ -571,6 +586,7 @@ async def attendance_view(
     date_range: Optional[str] = None,
     event_type: Optional[str] = None,
     manual: Optional[str] = None,
+    username: Optional[str] = None,
     db: AsyncSession = Depends(get_async_db),
     admin_user: models.Employee = Depends(get_current_admin)
 ):
@@ -580,7 +596,7 @@ async def attendance_view(
     manual_bool = None
     filtered = False
     
-    if date_range or event_type or manual:
+    if date_range or event_type or manual or username:
         filtered = True
     
     # Handle date range filter
@@ -637,11 +653,16 @@ async def attendance_view(
         start_date=start_date,
         end_date=end_date,
         event_type=event_type,
-        manual=manual_bool
+        manual=manual_bool,
+        username=username
     )
     
     # Sort by timestamp, most recent first
     events.sort(key=lambda x: x.timestamp, reverse=True)
+    
+    # Fetch all employees for the dropdown
+    result = await db.execute(select(models.Employee))
+    employees = result.scalars().all()
     
     return templates.TemplateResponse(
         "admin/attendance.html",
@@ -652,7 +673,9 @@ async def attendance_view(
             "filtered": filtered,
             "date_range": date_range,
             "event_type": event_type,
-            "manual": manual
+            "manual": manual,
+            "username": username,
+            "employees": employees
         }
     )
 

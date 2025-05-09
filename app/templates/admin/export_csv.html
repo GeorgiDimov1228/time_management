@@ -39,14 +39,13 @@
                             </select>
                         </div>
                         <div class="col-md-4">
-                            <label for="username" class="form-label">Username</label>
-                            <input type="text" class="form-control" id="username" name="username" 
-                                placeholder="Filter by username">
-                        </div>
-                        <div class="col-md-4">
-                            <label for="user_id" class="form-label">User ID</label>
-                            <input type="number" class="form-control" id="user_id" name="user_id" 
-                                placeholder="Filter by user ID">
+                            <label for="username" class="form-label">Employee</label>
+                            <select class="form-select" id="username" name="username">
+                                <option value="">All Employees</option>
+                                {% for employee in employees %}
+                                <option value="{{ employee.username }}">{{ employee.username }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
                         <div class="col-md-4">
                             <label for="manual" class="form-label">Manual Entry</label>
@@ -77,14 +76,22 @@
             </div>
             <div class="card-body">
                 <h6 class="card-subtitle mb-3 text-muted">About CSV Exports</h6>
-                <p>CSV exports include the following fields:</p>
+                <p>CSV exports include the following sections:</p>
                 <ul>
-                    <li>Event ID</li>
-                    <li>User ID</li>
-                    <li>Username</li>
-                    <li>Event Type (checkin/checkout)</li>
-                    <li>Timestamp</li>
-                    <li>Manual flag (Yes/No)</li>
+                    <li><strong>Employee Summary:</strong> Lists each employee with attendance statistics:
+                        <ul>
+                            <li>Employee Name</li>
+                            <li>Days Present</li>
+                            <li>Total Hours</li>
+                        </ul>
+                    </li>
+                    <li><strong>Detailed Records:</strong> Lists individual attendance events:
+                        <ul>
+                            <li>Employee Name</li>
+                            <li>Event Type (checkin/checkout)</li>
+                            <li>Timestamp</li>
+                        </ul>
+                    </li>
                 </ul>
                 <hr>
                 <h6 class="mb-3">Quick Exports</h6>
@@ -98,7 +105,7 @@
                         <option value="last-month">Last Month's Attendance</option>
                     </select>
                     <div class="mt-2">
-                        <button type="button" id="apply_quick_export" class="btn btn-primary btn-sm">
+                        <button type="button" id="apply_quick_export" class="btn btn-success btn-sm">
                             <i class="fas fa-download me-1"></i> Export Selected Range
                         </button>
                     </div>

@@ -56,7 +56,6 @@ class AttendanceCSVExportView(BaseView):
         end_date_str = request.query_params.get("end_date", "")
         event_type = request.query_params.get("event_type", "")
         username = request.query_params.get("username", "")
-        user_id = request.query_params.get("user_id", "") # API endpoint supports user_id
         manual_str = request.query_params.get("manual", "")
 
         content = f"""
@@ -78,7 +77,7 @@ class AttendanceCSVExportView(BaseView):
                                 <label for="end_date" class="font-weight-bold">End Date:</label>
                                 <input type="datetime-local" id="end_date" name="end_date" value="{end_date_str}" class="form-control form-control-sm">
                             </div>
-                            <div class="form-group col-md-2">
+                            <div class="form-group col-md-3">
                                 <label for="event_type" class="font-weight-bold">Event Type:</label>
                                 <select id="event_type" name="event_type" class="form-control form-control-sm">
                                     <option value="" {"selected" if not event_type else ""}>All</option>
@@ -86,17 +85,13 @@ class AttendanceCSVExportView(BaseView):
                                     <option value="checkout" {"selected" if event_type == "checkout" else ""}>Check Out</option>
                                 </select>
                             </div>
-                            <div class="form-group col-md-2">
-                                <label for="username" class="font-weight-bold">Username:</label>
+                            <div class="form-group col-md-3">
+                                <label for="username" class="font-weight-bold">Employee:</label>
                                 <input type="text" id="username" name="username" value="{username}" class="form-control form-control-sm" placeholder="e.g., testuser">
-                            </div>
-                            <div class="form-group col-md-2">
-                                <label for="user_id" class="font-weight-bold">User ID:</label>
-                                <input type="number" id="user_id" name="user_id" value="{user_id}" class="form-control form-control-sm" placeholder="e.g., 1">
                             </div>
                         </div>
                         <div class="form-row">
-                             <div class="form-group col-md-2">
+                             <div class="form-group col-md-3">
                                 <label for="manual" class="font-weight-bold">Manual Event:</label>
                                 <select id="manual" name="manual" class="form-control form-control-sm">
                                    <option value="" {"selected" if manual_str == "" else ""}>All</option>

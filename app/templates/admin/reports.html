@@ -33,15 +33,17 @@
                             <div class="form-text">Required field</div>
                         </div>
                         <div class="col-md-6">
-                            <label for="include_details" class="form-label">Include Detailed Entries</label>
-                            <select class="form-select" id="include_details" name="include_details">
-                                <option value="true" selected>Yes</option>
-                                <option value="false">No</option>
+                            <label for="username" class="form-label">Employee</label>
+                            <select class="form-select" id="username" name="username">
+                                <option value="">All Employees</option>
+                                {% for employee in employees %}
+                                <option value="{{ employee.username }}">{{ employee.username }}</option>
+                                {% endfor %}
                             </select>
-                            <div class="form-text">Include individual attendance records in the report</div>
+                            <div class="form-text">Filter report for a specific employee</div>
                         </div>
                         <div class="col-md-12 mt-4">
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-success">
                                 <i class="fas fa-file-alt me-1"></i> Generate Report
                             </button>
                             <button type="reset" class="btn btn-outline-secondary">
@@ -66,7 +68,7 @@
                     <li>Summary of attendance by employee</li>
                     <li>Total days present</li>
                     <li>Total working hours</li>
-                    <li>Detailed attendance records (optional)</li>
+                    <li>Detailed attendance records</li>
                 </ul>
                 <hr>
                 <h6 class="mb-3">Quick Reports</h6>
@@ -74,12 +76,13 @@
                     <label for="quick_report" class="form-label">Select a predefined date range</label>
                     <select id="quick_report" class="form-select">
                         <option value="">Choose date range...</option>
+                        <option value="today">Today's Report</option>
                         <option value="week">This Week's Report</option>
                         <option value="month">This Month's Report</option>
                         <option value="last-month">Last Month's Report</option>
                     </select>
                     <div class="mt-2">
-                        <button type="button" id="apply_quick_report" class="btn btn-primary btn-sm">
+                        <button type="button" id="apply_quick_report" class="btn btn-success btn-sm">
                             <i class="fas fa-file-alt me-1"></i> Generate Selected Report
                         </button>
                     </div>
@@ -89,7 +92,7 @@
                 <form id="quickReportForm" action="/api/admin/report" method="get" style="display:none;">
                     <input type="hidden" id="report_start_date" name="start_date" value="">
                     <input type="hidden" id="report_end_date" name="end_date" value="">
-                    <input type="hidden" name="include_details" value="true">
+                    <input type="hidden" id="report_username" name="username" value="">
                 </form>
             </div>
         </div>
@@ -139,6 +142,10 @@
             let startDate, endDate;
             
             switch(selectedRange) {
+                case 'today':
+                    startDate = '{{ today_start }}';
+                    endDate = '{{ today_end }}';
+                    break;
                 case 'week':
                     startDate = '{{ week_start }}';
                     endDate = '{{ week_end }}';
@@ -155,9 +162,13 @@
                     return;
             }
             
+            // Get the selected employee
+            const selectedEmployee = document.getElementById('username').value;
+            
             // Set form values and submit
             document.getElementById('report_start_date').value = startDate;
             document.getElementById('report_end_date').value = endDate;
+            document.getElementById('report_username').value = selectedEmployee;
             document.getElementById('quickReportForm').submit();
             
             // Show feedback

@@ -11,10 +11,10 @@
     <h1 class="h2">Attendance Records</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
-            <a href="/admin/filtered-attendance" class="btn btn-sm btn-outline-secondary">
+            <a href="/admin/filtered-attendance" class="btn btn-sm btn-outline-success">
                 <i class="fas fa-filter me-1"></i> Advanced Filtering
             </a>
-            <a href="/api/export/csv" class="btn btn-sm btn-outline-secondary" target="_blank">
+            <a href="/api/export/csv" class="btn btn-sm btn-outline-success" target="_blank">
                 <i class="fas fa-download me-1"></i> Export All
             </a>
         </div>
@@ -39,7 +39,7 @@
     </div>
     <div class="card-body">
         <div class="row">
-            <div class="col-md-4 mb-3">
+            <div class="col-md-3 mb-3">
                 <label for="date_filter" class="form-label">Date Range</label>
                 <select id="date_filter" class="form-select" onchange="window.location=this.value;">
                     <option value="/admin/attendance">All Dates</option>
@@ -50,7 +50,7 @@
                     <option value="/admin/attendance?date_range=last-month" {% if date_range == 'last-month' %}selected{% endif %}>Last Month</option>
                 </select>
             </div>
-            <div class="col-md-4 mb-3">
+            <div class="col-md-3 mb-3">
                 <label for="event_filter" class="form-label">Event Type</label>
                 <select id="event_filter" class="form-select" onchange="window.location=this.value;">
                     <option value="/admin/attendance">All Events</option>
@@ -58,7 +58,7 @@
                     <option value="/admin/attendance?event_type=checkout" {% if event_type == 'checkout' %}selected{% endif %}>Check-outs Only</option>
                 </select>
             </div>
-            <div class="col-md-4 mb-3">
+            <div class="col-md-3 mb-3">
                 <label for="manual_filter" class="form-label">Entry Type</label>
                 <select id="manual_filter" class="form-select" onchange="window.location=this.value;">
                     <option value="/admin/attendance">All Entries</option>
@@ -66,9 +66,18 @@
                     <option value="/admin/attendance?manual=false" {% if manual == 'false' %}selected{% endif %}>Automatic Entries Only</option>
                 </select>
             </div>
+            <div class="col-md-3 mb-3">
+                <label for="username_filter" class="form-label">Employee</label>
+                <select id="username_filter" class="form-select" onchange="window.location=this.value;">
+                    <option value="/admin/attendance">All Employees</option>
+                    {% for employee in employees %}
+                    <option value="/admin/attendance?username={{ employee.username }}" {% if username == employee.username %}selected{% endif %}>{{ employee.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             {% if filtered %}
             <div class="col-12 text-end">
-                <a href="/admin/attendance" class="btn btn-sm btn-outline-secondary">
+                <a href="/admin/attendance" class="btn btn-sm btn-outline-success">
                     <i class="fas fa-times me-1"></i> Clear All Filters
                 </a>
             </div>
@@ -81,7 +90,7 @@
     <div class="card-header d-flex justify-content-between">
         <h5 class="mb-0">Attendance Records</h5>
         {% if filtered %}
-        <a href="/admin/attendance" class="btn btn-sm btn-outline-secondary">
+        <a href="/admin/attendance" class="btn btn-sm btn-outline-success">
             <i class="fas fa-times me-1"></i> Clear Filters
         </a>
         {% endif %}
@@ -122,7 +131,7 @@
                         </td>
                         <td>{{ event.notes if event.notes else '' }}</td>
                         <td>
-                            <a href="/admin/attendance/{{ event.id }}/edit" class="btn btn-sm btn-outline-primary">
+                            <a href="/admin/attendance/{{ event.id }}/edit" class="btn btn-sm btn-outline-success">
                                 <i class="fas fa-edit"></i> Edit
                             </a>
                         </td>
