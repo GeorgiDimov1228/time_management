@@ -19,7 +19,7 @@ const char* ssid = "USERNAME";
 const char* password = "PASSS";         
 const char* serverUrl = "http://IPOFSERVER/api/checkin-scan";  // Check-in specific endpoint
 const char* tokenUrl = "http://IPOFSERVER/api/token";          // Token endpoint
-const char* apiUsername = "reader_username";                   // API username for auth
+const char* apiUsername = "rfid_reader";                   // API username for auth
 const char* apiPassword = "secure_reader_password";                   // API password for auth
 
 // Authentication variables
