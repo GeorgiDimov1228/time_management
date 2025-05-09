@@ -135,6 +135,14 @@ def get_date_ranges():
         next_month = now.replace(month=now.month + 1, day=1)
     month_end = (next_month - timedelta(days=1)).replace(hour=23, minute=59, second=59)
     
+    # Last month
+    if now.month == 1:
+        last_month_start = now.replace(year=now.year - 1, month=12, day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        last_month_start = now.replace(month=now.month - 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    last_month_end = (month_start - timedelta(seconds=1))
+    
     return {
         "today_start": today_start.isoformat(),
         "today_end": today_end.isoformat(),
@@ -142,6 +150,8 @@ def get_date_ranges():
         "week_end": week_end.isoformat(),
         "month_start": month_start.isoformat(),
         "month_end": month_end.isoformat(),
+        "last_month_start": last_month_start.isoformat(),
+        "last_month_end": last_month_end.isoformat(),
     }
 
 # --- Admin Routes ---
@@ -205,12 +215,12 @@ async def admin_dashboard(
 @router.get("/filtered-attendance", response_class=HTMLResponse)
 async def filtered_attendance_view(
     request: Request,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     event_type: Optional[str] = None,
     username: Optional[str] = None,
-    user_id: Optional[int] = None,
-    manual: Optional[bool] = None,
+    user_id: Optional[str] = None,
+    manual: Optional[str] = None,
     db: AsyncSession = Depends(get_async_db),
     admin_user: models.Employee = Depends(get_current_admin)
 ):
@@ -218,33 +228,66 @@ async def filtered_attendance_view(
     filtered = False
     query_string = ""
     
+    # Process input parameters
+    parsed_start_date = None
+    parsed_end_date = None
+    parsed_user_id = None
+    parsed_manual = None
+    
+    # Parse dates if provided
+    if start_date and start_date.strip():
+        try:
+            parsed_start_date = datetime.fromisoformat(start_date)
+        except ValueError:
+            # Handle invalid date format
+            pass
+    
+    if end_date and end_date.strip():
+        try:
+            parsed_end_date = datetime.fromisoformat(end_date)
+        except ValueError:
+            # Handle invalid date format
+            pass
+    
+    # Parse user_id if provided
+    if user_id and user_id.strip():
+        try:
+            parsed_user_id = int(user_id)
+        except ValueError:
+            # Handle invalid user_id
+            pass
+    
+    # Parse manual if provided
+    if manual and manual.strip():
+        parsed_manual = manual.lower() == "true"
+    
     # If any filter is set, query the data
-    if any([start_date, end_date, event_type, username, user_id, manual is not None]):
+    if any([parsed_start_date, parsed_end_date, event_type, username, parsed_user_id, parsed_manual is not None]):
         filtered = True
         events = await crud.get_filtered_attendance_events(
             db,
-            start_date=start_date,
-            end_date=end_date,
-            event_type=event_type,
-            username=username,
-            user_id=user_id,
-            manual=manual
+            start_date=parsed_start_date,
+            end_date=parsed_end_date,
+            event_type=event_type if event_type else None,
+            username=username if username else None,
+            user_id=parsed_user_id,
+            manual=parsed_manual
         )
         
         # Build query string for export link
         params = {}
         if start_date:
-            params["start_date"] = start_date.isoformat()
+            params["start_date"] = start_date
         if end_date:
-            params["end_date"] = end_date.isoformat()
+            params["end_date"] = end_date
         if event_type:
             params["event_type"] = event_type
         if username:
             params["username"] = username
         if user_id:
-            params["user_id"] = str(user_id)
-        if manual is not None:
-            params["manual"] = str(manual).lower()
+            params["user_id"] = user_id
+        if manual:
+            params["manual"] = manual
         
         query_string = urllib.parse.urlencode(params)
     
@@ -567,6 +610,19 @@ async def attendance_view(
         month_end = (next_month - timedelta(days=1)).replace(hour=23, minute=59, second=59)
         start_date = month_start
         end_date = month_end
+    elif date_range == "last-month":
+        # Start of last month
+        if now.month == 1:
+            last_month_start = now.replace(year=now.year - 1, month=12, day=1, hour=0, minute=0, second=0, microsecond=0)
+        else:
+            last_month_start = now.replace(month=now.month - 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # End of last month
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_month_end = (month_start - timedelta(seconds=1))
+        
+        start_date = last_month_start
+        end_date = last_month_end
     
     # Handle manual filter
     if manual is not None:

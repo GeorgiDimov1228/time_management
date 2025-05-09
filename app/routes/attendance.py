@@ -1,7 +1,7 @@
 # time_management/app/routes/attendance.py
-from fastapi import APIRouter, HTTPException, Depends, Body, Query
+from fastapi import APIRouter, HTTPException, Depends, Body, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession # Use AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from datetime import datetime, timedelta, timezone
 from app import models, schemas, crud, security
 from app.database import get_async_db # Use async dependency
@@ -16,6 +16,37 @@ ACTION_COOLDOWN_SECONDS = int(os.getenv("ACTION_COOLDOWN_SECONDS", 10))
 router = APIRouter(
     tags=["attendance"],
 )
+
+# Helper function to get admin user from cookie
+async def get_admin_from_cookie(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db)
+):
+    # Check for the admin token cookie
+    token = request.cookies.get("admin_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    try:
+        # Verify token and get user ID
+        credentials_exception = HTTPException(
+            status_code=401, 
+            detail="Could not validate credentials"
+        )
+        user_id = security.verify_token(token, credentials_exception)
+        
+        # Get user from DB and verify admin status
+        user = await crud.get_employee(db, user_id=user_id)
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        
+        if not user.is_admin:
+            raise HTTPException(status_code=403, detail="Not admin")
+        
+        # Return the user object
+        return user
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
 
 @router.post("/scan", response_model=schemas.AttendanceEventResponse)
 async def process_rfid_scan( 
@@ -174,6 +205,7 @@ async def get_filtered_attendance(
 
 @router.get("/export/csv", response_class=StreamingResponse)
 async def export_attendance_csv(
+    request: Request,
     start_date: Optional[datetime] = Query(None, description="Filter by start date (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="Filter by end date (ISO format)"),
     event_type: Optional[str] = Query(None, description="Filter by event type (checkin/checkout)"),
@@ -181,7 +213,7 @@ async def export_attendance_csv(
     username: Optional[str] = Query(None, description="Filter by username"),
     manual: Optional[bool] = Query(None, description="Filter by manual flag (true/false)"),
     db: AsyncSession = Depends(get_async_db),
-    authenticated_user: models.Employee = Depends(security.get_current_authenticated_user_async)
+    authenticated_user: models.Employee = Depends(get_admin_from_cookie)
 ):
     """Export filtered attendance events as CSV"""
     events = await crud.get_filtered_attendance_events(
@@ -228,11 +260,12 @@ async def export_attendance_csv(
 
 @router.get("/admin/report", response_class=StreamingResponse)
 async def admin_attendance_report(
+    request: Request,
     start_date: datetime = Query(..., description="Report start date (ISO format, required)"),
     end_date: datetime = Query(..., description="Report end date (ISO format, required)"),
     include_details: bool = Query(True, description="Include detailed entries in report"),
     db: AsyncSession = Depends(get_async_db),
-    admin_user: models.Employee = Depends(security.get_current_admin_user_async)
+    admin_user: models.Employee = Depends(get_admin_from_cookie)
 ):
     """
     Generate a comprehensive attendance report for admins.

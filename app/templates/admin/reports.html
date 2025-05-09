@@ -41,7 +41,7 @@
                             <div class="form-text">Include individual attendance records in the report</div>
                         </div>
                         <div class="col-md-12 mt-4">
-                            <button type="submit" class="btn btn-info">
+                            <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-file-alt me-1"></i> Generate Report
                             </button>
                             <button type="reset" class="btn btn-outline-secondary">
@@ -70,14 +70,27 @@
                 </ul>
                 <hr>
                 <h6 class="mb-3">Quick Reports</h6>
-                <div class="d-grid gap-2">
-                    <a href="/api/admin/report?start_date={{ week_start }}&end_date={{ week_end }}&include_details=true" class="btn btn-outline-info btn-sm" target="_blank">
-                        <i class="fas fa-calendar-week me-1"></i> This Week's Report
-                    </a>
-                    <a href="/api/admin/report?start_date={{ month_start }}&end_date={{ month_end }}&include_details=true" class="btn btn-outline-info btn-sm" target="_blank">
-                        <i class="fas fa-calendar-alt me-1"></i> This Month's Report
-                    </a>
+                <div class="mb-3">
+                    <label for="quick_report" class="form-label">Select a predefined date range</label>
+                    <select id="quick_report" class="form-select">
+                        <option value="">Choose date range...</option>
+                        <option value="week">This Week's Report</option>
+                        <option value="month">This Month's Report</option>
+                        <option value="last-month">Last Month's Report</option>
+                    </select>
+                    <div class="mt-2">
+                        <button type="button" id="apply_quick_report" class="btn btn-primary btn-sm">
+                            <i class="fas fa-file-alt me-1"></i> Generate Selected Report
+                        </button>
+                    </div>
                 </div>
+                
+                <!-- Hidden form for quick reports -->
+                <form id="quickReportForm" action="/api/admin/report" method="get" style="display:none;">
+                    <input type="hidden" id="report_start_date" name="start_date" value="">
+                    <input type="hidden" id="report_end_date" name="end_date" value="">
+                    <input type="hidden" name="include_details" value="true">
+                </form>
             </div>
         </div>
     </div>
@@ -111,6 +124,46 @@
             generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
             setTimeout(() => {
                 generateBtn.innerHTML = '<i class="fas fa-file-alt me-1"></i> Generate Report';
+            }, 3000);
+        });
+        
+        // Quick Report button handler
+        document.getElementById('apply_quick_report').addEventListener('click', function() {
+            const selectedRange = document.getElementById('quick_report').value;
+            if (!selectedRange) {
+                alert('Please select a date range first');
+                return;
+            }
+            
+            // Set the appropriate date values based on selection
+            let startDate, endDate;
+            
+            switch(selectedRange) {
+                case 'week':
+                    startDate = '{{ week_start }}';
+                    endDate = '{{ week_end }}';
+                    break;
+                case 'month':
+                    startDate = '{{ month_start }}';
+                    endDate = '{{ month_end }}';
+                    break;
+                case 'last-month':
+                    startDate = '{{ last_month_start }}';
+                    endDate = '{{ last_month_end }}';
+                    break;
+                default:
+                    return;
+            }
+            
+            // Set form values and submit
+            document.getElementById('report_start_date').value = startDate;
+            document.getElementById('report_end_date').value = endDate;
+            document.getElementById('quickReportForm').submit();
+            
+            // Show feedback
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
+            setTimeout(() => {
+                this.innerHTML = '<i class="fas fa-file-alt me-1"></i> Generate Selected Report';
             }, 3000);
         });
     });

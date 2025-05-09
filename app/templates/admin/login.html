@@ -11,6 +11,9 @@
     <!-- Font Awesome for icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
+    <!-- Custom CSS -->
+    <link href="/static/css/custom.css" rel="stylesheet">
+    
     <style>
         html, body {
             height: 100%;
@@ -21,7 +24,7 @@
             align-items: center;
             padding-top: 40px;
             padding-bottom: 40px;
-            background-color: #f5f5f5;
+            background-color: var(--bg-light);
         }
         
         .form-signin {
@@ -44,12 +47,36 @@
             border-top-left-radius: 0;
             border-top-right-radius: 0;
         }
+        
+        .logo-container {
+            background-color: transparent;
+            border-radius: 10px;
+            padding: 10px;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+        
+        .btn-primary {
+            background-color: #ff9900;
+            border-color: #ff9900;
+        }
+        
+        .btn-primary:hover {
+            background-color: #e68a00;
+            border-color: #e68a00;
+        }
+        
+        h1, h2 {
+            color: #4f4f4f;
+        }
     </style>
 </head>
 <body class="text-center">
     <main class="form-signin w-100 m-auto">
         <form method="post" action="/admin/login">
-            <img class="mb-4" src="https://getbootstrap.com/docs/5.3/assets/brand/bootstrap-logo.svg" alt="" width="72" height="57">
+            <div class="logo-container">
+                <img src="/static/img/cst_logo_transparent.png" alt="Time Management Logo" width="150" height="auto">
+            </div>
             <h1 class="h3 mb-3 fw-normal">Time Management</h1>
             <h2 class="h5 mb-3 fw-normal">Admin Login</h2>
             

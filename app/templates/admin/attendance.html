@@ -39,35 +39,40 @@
     </div>
     <div class="card-body">
         <div class="row">
-            <div class="col-md-6">
-                <div class="d-grid gap-2">
-                    <a href="/admin/attendance?date_range=today" class="btn btn-outline-primary btn-sm {% if date_range == 'today' %}active{% endif %}">
-                        <i class="fas fa-calendar-day me-2"></i> Today
-                    </a>
-                    <a href="/admin/attendance?date_range=yesterday" class="btn btn-outline-primary btn-sm {% if date_range == 'yesterday' %}active{% endif %}">
-                        <i class="fas fa-calendar-day me-2"></i> Yesterday
-                    </a>
-                    <a href="/admin/attendance?date_range=week" class="btn btn-outline-primary btn-sm {% if date_range == 'week' %}active{% endif %}">
-                        <i class="fas fa-calendar-week me-2"></i> This Week
-                    </a>
-                    <a href="/admin/attendance?date_range=month" class="btn btn-outline-primary btn-sm {% if date_range == 'month' %}active{% endif %}">
-                        <i class="fas fa-calendar-alt me-2"></i> This Month
-                    </a>
-                </div>
+            <div class="col-md-4 mb-3">
+                <label for="date_filter" class="form-label">Date Range</label>
+                <select id="date_filter" class="form-select" onchange="window.location=this.value;">
+                    <option value="/admin/attendance">All Dates</option>
+                    <option value="/admin/attendance?date_range=today" {% if date_range == 'today' %}selected{% endif %}>Today</option>
+                    <option value="/admin/attendance?date_range=yesterday" {% if date_range == 'yesterday' %}selected{% endif %}>Yesterday</option>
+                    <option value="/admin/attendance?date_range=week" {% if date_range == 'week' %}selected{% endif %}>This Week</option>
+                    <option value="/admin/attendance?date_range=month" {% if date_range == 'month' %}selected{% endif %}>This Month</option>
+                    <option value="/admin/attendance?date_range=last-month" {% if date_range == 'last-month' %}selected{% endif %}>Last Month</option>
+                </select>
             </div>
-            <div class="col-md-6">
-                <div class="d-grid gap-2">
-                    <a href="/admin/attendance?event_type=checkin" class="btn btn-outline-success btn-sm {% if event_type == 'checkin' %}active{% endif %}">
-                        <i class="fas fa-sign-in-alt me-2"></i> Check-ins Only
-                    </a>
-                    <a href="/admin/attendance?event_type=checkout" class="btn btn-outline-danger btn-sm {% if event_type == 'checkout' %}active{% endif %}">
-                        <i class="fas fa-sign-out-alt me-2"></i> Check-outs Only
-                    </a>
-                    <a href="/admin/attendance?manual=true" class="btn btn-outline-warning btn-sm {% if manual == 'true' %}active{% endif %}">
-                        <i class="fas fa-user-edit me-2"></i> Manual Entries Only
-                    </a>
-                </div>
+            <div class="col-md-4 mb-3">
+                <label for="event_filter" class="form-label">Event Type</label>
+                <select id="event_filter" class="form-select" onchange="window.location=this.value;">
+                    <option value="/admin/attendance">All Events</option>
+                    <option value="/admin/attendance?event_type=checkin" {% if event_type == 'checkin' %}selected{% endif %}>Check-ins Only</option>
+                    <option value="/admin/attendance?event_type=checkout" {% if event_type == 'checkout' %}selected{% endif %}>Check-outs Only</option>
+                </select>
             </div>
+            <div class="col-md-4 mb-3">
+                <label for="manual_filter" class="form-label">Entry Type</label>
+                <select id="manual_filter" class="form-select" onchange="window.location=this.value;">
+                    <option value="/admin/attendance">All Entries</option>
+                    <option value="/admin/attendance?manual=true" {% if manual == 'true' %}selected{% endif %}>Manual Entries Only</option>
+                    <option value="/admin/attendance?manual=false" {% if manual == 'false' %}selected{% endif %}>Automatic Entries Only</option>
+                </select>
+            </div>
+            {% if filtered %}
+            <div class="col-12 text-end">
+                <a href="/admin/attendance" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-times me-1"></i> Clear All Filters
+                </a>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

@@ -88,17 +88,27 @@
                 </ul>
                 <hr>
                 <h6 class="mb-3">Quick Exports</h6>
-                <div class="d-grid gap-2">
-                    <a href="/api/export/csv?start_date={{ today_start }}&end_date={{ today_end }}" class="btn btn-outline-primary btn-sm" target="_blank">
-                        <i class="fas fa-calendar-day me-1"></i> Today's Attendance
-                    </a>
-                    <a href="/api/export/csv?start_date={{ week_start }}&end_date={{ week_end }}" class="btn btn-outline-primary btn-sm" target="_blank">
-                        <i class="fas fa-calendar-week me-1"></i> This Week's Attendance
-                    </a>
-                    <a href="/api/export/csv?start_date={{ month_start }}&end_date={{ month_end }}" class="btn btn-outline-primary btn-sm" target="_blank">
-                        <i class="fas fa-calendar-alt me-1"></i> This Month's Attendance
-                    </a>
+                <div class="mb-3">
+                    <label for="quick_export" class="form-label">Select a predefined date range</label>
+                    <select id="quick_export" class="form-select">
+                        <option value="">Choose date range...</option>
+                        <option value="today">Today's Attendance</option>
+                        <option value="week">This Week's Attendance</option>
+                        <option value="month">This Month's Attendance</option>
+                        <option value="last-month">Last Month's Attendance</option>
+                    </select>
+                    <div class="mt-2">
+                        <button type="button" id="apply_quick_export" class="btn btn-primary btn-sm">
+                            <i class="fas fa-download me-1"></i> Export Selected Range
+                        </button>
+                    </div>
                 </div>
+                
+                <!-- Hidden form for exports -->
+                <form id="quickExportForm" action="/api/export/csv" method="get" style="display:none;">
+                    <input type="hidden" id="export_start_date" name="start_date" value="">
+                    <input type="hidden" id="export_end_date" name="end_date" value="">
+                </form>
             </div>
         </div>
     </div>
@@ -126,6 +136,50 @@
             downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
             setTimeout(() => {
                 downloadBtn.innerHTML = '<i class="fas fa-download me-1"></i> Download CSV';
+            }, 3000);
+        });
+        
+        // Quick Export button handler
+        document.getElementById('apply_quick_export').addEventListener('click', function() {
+            const selectedRange = document.getElementById('quick_export').value;
+            if (!selectedRange) {
+                alert('Please select a date range first');
+                return;
+            }
+            
+            // Set the appropriate date values based on selection
+            let startDate, endDate;
+            
+            switch(selectedRange) {
+                case 'today':
+                    startDate = '{{ today_start }}';
+                    endDate = '{{ today_end }}';
+                    break;
+                case 'week':
+                    startDate = '{{ week_start }}';
+                    endDate = '{{ week_end }}';
+                    break;
+                case 'month':
+                    startDate = '{{ month_start }}';
+                    endDate = '{{ month_end }}';
+                    break;
+                case 'last-month':
+                    startDate = '{{ last_month_start }}';
+                    endDate = '{{ last_month_end }}';
+                    break;
+                default:
+                    return;
+            }
+            
+            // Set form values and submit
+            document.getElementById('export_start_date').value = startDate;
+            document.getElementById('export_end_date').value = endDate;
+            document.getElementById('quickExportForm').submit();
+            
+            // Show feedback
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
+            setTimeout(() => {
+                this.innerHTML = '<i class="fas fa-download me-1"></i> Export Selected Range';
             }, 3000);
         });
     });
