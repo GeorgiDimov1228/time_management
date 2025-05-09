@@ -1,0 +1,164 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Attendance - Time Management Admin{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Attendance Records</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="/admin/filtered-attendance" class="btn btn-sm btn-outline-success">
+                <i class="fas fa-filter me-1"></i> Advanced Filtering
+            </a>
+            <a href="/api/export/csv" class="btn btn-sm btn-outline-success" target="_blank">
+                <i class="fas fa-download me-1"></i> Export All
+            </a>
+        </div>
+    </div>
+</div>
+
+{% if request.query_params.get('success') %}
+<div class="alert alert-success">
+    {{ request.query_params.get('success') }}
+</div>
+{% endif %}
+
+{% if request.query_params.get('error') %}
+<div class="alert alert-danger">
+    {{ request.query_params.get('error') }}
+</div>
+{% endif %}
+
+<div class="card mb-4 shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0">Quick Filters</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3 mb-3">
+                <label for="date_filter" class="form-label">Date Range</label>
+                <select id="date_filter" class="form-select" onchange="window.location=this.value;">
+                    <option value="/admin/attendance">All Dates</option>
+                    <option value="/admin/attendance?date_range=today" {% if date_range == 'today' %}selected{% endif %}>Today</option>
+                    <option value="/admin/attendance?date_range=yesterday" {% if date_range == 'yesterday' %}selected{% endif %}>Yesterday</option>
+                    <option value="/admin/attendance?date_range=week" {% if date_range == 'week' %}selected{% endif %}>This Week</option>
+                    <option value="/admin/attendance?date_range=month" {% if date_range == 'month' %}selected{% endif %}>This Month</option>
+                    <option value="/admin/attendance?date_range=last-month" {% if date_range == 'last-month' %}selected{% endif %}>Last Month</option>
+                </select>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label for="event_filter" class="form-label">Event Type</label>
+                <select id="event_filter" class="form-select" onchange="window.location=this.value;">
+                    <option value="/admin/attendance">All Events</option>
+                    <option value="/admin/attendance?event_type=checkin" {% if event_type == 'checkin' %}selected{% endif %}>Check-ins Only</option>
+                    <option value="/admin/attendance?event_type=checkout" {% if event_type == 'checkout' %}selected{% endif %}>Check-outs Only</option>
+                </select>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label for="manual_filter" class="form-label">Entry Type</label>
+                <select id="manual_filter" class="form-select" onchange="window.location=this.value;">
+                    <option value="/admin/attendance">All Entries</option>
+                    <option value="/admin/attendance?manual=true" {% if manual == 'true' %}selected{% endif %}>Manual Entries Only</option>
+                    <option value="/admin/attendance?manual=false" {% if manual == 'false' %}selected{% endif %}>Automatic Entries Only</option>
+                </select>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label for="username_filter" class="form-label">Employee</label>
+                <select id="username_filter" class="form-select" onchange="window.location=this.value;">
+                    <option value="/admin/attendance">All Employees</option>
+                    {% for employee in employees %}
+                    <option value="/admin/attendance?username={{ employee.username }}" {% if username == employee.username %}selected{% endif %}>{{ employee.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if filtered %}
+            <div class="col-12 text-end">
+                <a href="/admin/attendance" class="btn btn-sm btn-outline-success">
+                    <i class="fas fa-times me-1"></i> Clear All Filters
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header d-flex justify-content-between">
+        <h5 class="mb-0">Attendance Records</h5>
+        {% if filtered %}
+        <a href="/admin/attendance" class="btn btn-sm btn-outline-success">
+            <i class="fas fa-times me-1"></i> Clear Filters
+        </a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover datatable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Employee</th>
+                        <th>Event Type</th>
+                        <th>Timestamp</th>
+                        <th>Manual</th>
+                        <th>Notes</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events %}
+                    <tr>
+                        <td>{{ event.id }}</td>
+                        <td>{{ event.employee.username }}</td>
+                        <td>
+                            {% if event.event_type == 'checkin' %}
+                            <span class="badge bg-success">Check In</span>
+                            {% else %}
+                            <span class="badge bg-danger">Check Out</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>
+                            {% if event.manual %}
+                            <span class="badge bg-success">Yes</span>
+                            {% else %}
+                            <span class="badge bg-danger">No</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ event.notes if event.notes else '' }}</td>
+                        <td>
+                            <a href="/admin/attendance/{{ event.id }}/edit" class="btn btn-sm btn-outline-success">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if events|length == 0 %}
+        <div class="alert alert-info mt-3">
+            <i class="fas fa-info-circle me-2"></i> No attendance records found.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize datetime pickers
+        flatpickr(".date-picker", {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i",
+            time_24hr: true
+        });
+    });
+</script>
+{% endblock %} 

@@ -1,86 +1,104 @@
-# Time Management API
+# Time Management System
 
-A REST API system for managing employee attendance through RFID card check-ins and check-outs. This application provides a robust backend for workplace time tracking with administrative controls and secure API endpoints.
+A comprehensive employee time tracking solution with RFID-based attendance management and a custom admin interface.
 
-## Project Overview
+## Overview
 
-This API allows employees to check in and out using RFID cards, tracks attendance records, and provides administrative functionality to manage employee data. Built with FastAPI and PostgreSQL, it offers a modern, secure, and efficient solution for time tracking needs.
+The Time Management System is designed to track employee attendance through RFID card check-ins and check-outs. It features a custom web-based admin interface that provides administrators with tools for managing employees, monitoring attendance, generating reports, and performing manual attendance adjustments.
 
-## Features
+## Key Features
 
-- **RFID-based Check-in/Check-out**: Track employee attendance through RFID card scans
-- **Smart Scan Processing**: Automatically determines check-in or check-out based on employee's last action
-- **User Management**: Create, read, update, and delete employee records
+### Core Functionality
+- **RFID-based Check-in/Check-out**: Track employee attendance using RFID card scans
+- **Automatic Event Detection**: System intelligently determines whether to record a check-in or check-out
+- **Cooldown Prevention**: Prevents duplicate scans within a configurable time window
+- **UTC Timezone Support**: Consistent timestamp handling across different time zones
+
+### Custom Admin Interface
+- **Dashboard**: Real-time overview of today's attendance statistics
+- **Employee Management**: CRUD operations for managing employee records
+- **Attendance Monitoring**: View, filter, and edit attendance records
+- **Manual Check-in/out**: Record attendance events manually when needed
+- **Advanced Filtering**: Filter attendance by date range, employee, event type, etc.
+- **Export Tools**: Generate and download CSV exports of attendance data
+- **Reporting**: Create comprehensive attendance reports with employee statistics
+
+### Security
 - **Role-based Access Control**: Admin permissions for sensitive operations
 - **JWT Authentication**: Secure API access with token-based authentication
-- **Attendance Tracking**: Record and retrieve attendance events with timestamps
-- **Database Integration**: PostgreSQL storage for all employee and attendance data
-- **Docker Support**: Easy deployment with Docker and docker-compose
-- **Admin Panel**: Web-based administrative interface powered by SQLAdmin
-- **Hardware Integration**: Support for Arduino, ESP32/ESP8266 RFID readers
-- **Flexible RFID Reader Support**: Multiple integration options (direct API, bridge middleware)
-- **Cooldown Mechanism**: Prevents duplicate scans within a configurable time window
-- **UTC Timezone Support**: Consistent timestamp handling across different time zones
-- **Mock RFID Reader**: Test functionality without physical hardware
+- **Cookie-based Session Management**: Secure admin interface sessions
+- **Password Hashing**: All passwords stored securely using bcrypt
 
-## Architecture
+### Integration Capabilities
+- **Hardware Integration**: Compatible with Arduino, ESP32/ESP8266 RFID readers
+- **Multiple Integration Methods**: Direct API, bridge middleware, or RFID listener
+- **Testing Tools**: Mock RFID reader for testing without physical hardware
 
-The application follows a layered architecture pattern:
+## System Architecture
 
-- **API Layer** (`app/routes/*.py`): Defines all API endpoints and request/response handling
-- **Service Layer** (`app/crud.py`): Contains business logic and database operations
-- **Data Access Layer** (`app/models.py`, `app/database.py`): Database models and connection handling
-- **Schema Layer** (`app/schemas.py`): Data validation and serialization/deserialization
-- **Security** (`app/security.py`, `app/auth.py`): Authentication and authorization
-- **RFID Integration** (`app/rfid_listener.py`): Component for interfacing with network-accessible RFID readers
-- **RFID Bridge** (`serial_portRead/bridge.py`): Middleware for non-networked RFID readers
+The application follows a modern architecture pattern:
+
+- **API Layer**: FastAPI routes defining all endpoints and request/response handling
+- **Business Logic Layer**: CRUD operations and core business functionality
+- **Data Layer**: SQLAlchemy ORM with PostgreSQL database
+- **Schema Layer**: Pydantic models for data validation and serialization
+- **Security Layer**: Authentication and authorization mechanisms
+- **UI Layer**: Custom admin interface with Jinja2 templates and Bootstrap 5
 
 ## Tech Stack
 
-- **FastAPI**: Modern Python web framework
-- **SQLAlchemy**: SQL toolkit and ORM
-- **Pydantic**: Data validation and settings management
-- **PostgreSQL**: Relational database
-- **JWT**: Token-based authentication
-- **Bcrypt**: Password hashing
-- **Docker**: Containerization
-- **SQLAdmin**: Admin interface
-- **Arduino/ESP**: RFID hardware integration
-- **Flask**: Used for mock RFID reader testing
+- **Backend**: FastAPI (Python)
+- **Database**: PostgreSQL with SQLAlchemy ORM
+- **Authentication**: JWT tokens and cookie-based sessions
+- **Frontend**: HTML, CSS, JavaScript, Bootstrap 5
+- **RFID Hardware Support**: Arduino/ESP32/ESP8266
+
+## Database Schema
+
+### employees
+- `id`: Primary key
+- `username`: Unique username
+- `email`: Employee email address
+- `rfid`: RFID card number
+- `hashed_password`: Encrypted password
+- `is_admin`: Boolean flag for admin privileges
+
+### attendance_events
+- `id`: Primary key
+- `user_id`: Foreign key to employees
+- `event_type`: "checkin" or "checkout"
+- `timestamp`: Date and time of the event
+- `manual`: Boolean flag indicating manual or automatic entry
+- `notes`: Optional text field for additional information
 
 ## Getting Started
 
 ### Prerequisites
 
 - Docker and Docker Compose
-- Python 3.8+ (if running locally)
-- Arduino IDE (for hardware integration)
+- Python 3.8+
+- PostgreSQL (if running without Docker)
 
 ### Environment Setup
 
-1. Create a `.env` file in the project root with the following variables:
+1. Create a `.env` file in the project root with:
 
 ```
-DATABASE_URL=postgresql://yourusername:yourpassword@db/time_management_db
-REDIS_URL=redis://redis:6379/0
+DATABASE_URL=postgresql://username:password@localhost/time_management_db
 SECRET_KEY=your-secure-secret-key
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 DEFAULT_ADMIN_USERNAME=admin
 DEFAULT_ADMIN_EMAIL=admin@example.com
 DEFAULT_ADMIN_PASSWORD=adminpassword
+ACTION_COOLDOWN_SECONDS=10
 ```
 
 ### Running with Docker
 
-1. Build and start the containers:
-
 ```bash
 docker compose up -d
 ```
-
-2. The API will be available at http://localhost:8000
-3. The Admin panel will be available at http://localhost:8000/admin
 
 ### Running Locally
 
@@ -90,118 +108,79 @@ docker compose up -d
 pip install -r requirements.txt
 ```
 
-2. Run the application:
+2. Set up the database:
+
+```bash
+# Create database if needed
+createdb time_management_db
+```
+
+3. Run the application:
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
+## Admin Interface
+
+The custom admin interface is accessible at `/admin` and provides the following functionality:
+
+### Dashboard
+- Overview of current day attendance statistics
+- Recent activity feed
+- Employee count and check-in/out summary
+
+### Employee Management
+- List all employees with search and filtering
+- Add new employees with role assignment
+- Edit existing employee details
+- Reset employee passwords
+- Delete employees (with confirmation)
+
+### Attendance Management
+- View all attendance records
+- Filter by date range, employee, event type, etc.
+- Quick filters for today, this week, this month, and last month
+- Edit attendance records (change timestamp, event type, etc.)
+- Add manual attendance entries
+- Delete incorrect entries
+
+### Data Export & Reporting
+- Export attendance data as CSV with configurable filters
+- Generate comprehensive reports with employee statistics
+- Include/exclude detailed entries in reports
+- Quick export options for common date ranges
+
 ## API Endpoints
 
+The system exposes REST API endpoints for integration:
+
 ### Authentication
+- `POST /api/token`: Obtain JWT access token
 
-- **POST /api/token**: Get JWT access token
+### User Management
+- `GET /api/users`: List employees
+- `GET /api/users/{id}`: Get employee details
+- `POST /api/users`: Create employee
+- `PUT /api/users/{id}`: Update employee
+- `DELETE /api/users/{id}`: Delete employee
 
-### User Management (Admin Only)
-
-- **GET /api/users**: List all employees
-- **GET /api/users/{id}**: Get employee details
-- **POST /api/users**: Create new employee
-- **PUT /api/users/{id}**: Update employee information
-- **PUT /api/users/{id}/password**: Update employee password
-- **DELETE /api/users/{id}**: Delete employee
-
-### Attendance Tracking
-
-- **GET /api/employees/status?rfid={rfid}**: Get employee's current status
-- **POST /api/checkin?rfid={rfid}**: Record a check-in event (admin only)
-- **GET /api/checkin**: List all check-in events
-- **POST /api/checkout?rfid={rfid}**: Record a check-out event (admin only)
-- **GET /api/checkout**: List all check-out events
-- **POST /api/scan**: Process RFID scan (determines check-in or check-out automatically)
+### Attendance
+- `POST /api/scan`: Process RFID scan (auto-detects check-in/out)
+- `GET /api/employees/status`: Get employee status
+- `POST /api/checkin`: Manual check-in
+- `POST /api/checkout`: Manual check-out
+- `GET /api/filtered`: Get filtered attendance records
+- `GET /api/export/csv`: Export attendance as CSV
+- `GET /api/admin/report`: Generate attendance report
 
 ## RFID Integration
 
-The system provides multiple ways to integrate with RFID hardware:
+### Direct API Integration
+Network-enabled RFID readers can directly call the API endpoints.
 
-### 1. Direct API Integration
-
-Network-enabled RFID readers (like ESP32/ESP8266) can directly call the API endpoints. See `http.cpp` for an example implementation.
-
-### 2. RFID Bridge
-
-For non-networked readers (like Arduino with RFID-RC522), use the bridge script:
-
-```bash
-# Install required libraries
-pip install pyserial requests
-
-# Run the bridge script (adjust serial port as needed)
-python serial_portRead/bridge.py
-```
-
-The bridge:
-- Reads RFID UIDs from a serial connection
-- Handles communication with the API
-- Implements cooldown periods to prevent duplicate scans
-- Automatically determines check-in or check-out based on user's last event
-
-### 3. RFID Listener
-
-The system includes an RFID listener (`app/rfid_listener.py`) that can interface with network-accessible RFID readers. This component:
-
-- Runs as a background thread
-- Polls configured RFID readers for card scans
-- Processes scans by triggering check-in or check-out events
-- Supports multiple readers (e.g., entrance and exit points)
-
-## Hardware Selection Guide
-
-For guidance on selecting appropriate RFID hardware for your deployment, refer to the [RFID Hardware Selection Guide](rfid-choosing-guide.md).
-
-## Admin Panel
-
-The system includes a web-based admin panel at `/admin` that provides:
-
-- User management interface
-- Attendance event viewing and filtering
-- Manual attendance entry
-- Authentication security
-
-Default admin credentials are set in your `.env` file or with the following defaults:
-- Username: admin
-- Password: adminpassword
-
-## Testing
-
-The project includes a test script (`test.bash`) for testing API endpoints. Run the script to verify that the API is working correctly:
-
-```bash
-bash test.bash
-```
-
-For testing RFID functionality without hardware, use the mock RFID reader:
-
-```bash
-python mock_rfid_reader.py
-```
-
-## Database Schema
-
-### employees
-- `id`: Primary key
-- `username`: Unique username
-- `email`: Employee email address
-- `rfid`: RFID card number
-- `hashed_password`: Hashed password (for admin users)
-- `is_admin`: Boolean flag for admin permissions
-
-### attendance_events
-- `id`: Primary key
-- `user_id`: Foreign key to employees
-- `event_type`: "checkin" or "checkout"
-- `timestamp`: Date and time of the event
-- `manual`: Boolean flag for manual entries
+### RFID Bridge
+For non-networked readers, use the bridge script in `serial_portRead/bridge.py`.
 
 ## Security Considerations
 
@@ -209,16 +188,12 @@ python mock_rfid_reader.py
 - API endpoints protected with JWT authentication
 - Admin-only routes require admin role verification
 - Default admin user is created on startup for initial setup
-- Session-based authentication for the admin panel
+- Auth tokens with configurable expiration
+- Cookie-based authentication for the admin UI
 
-## License
+## Testing
 
-[Specify your license here]
+Use the following scripts to test the system:
 
-## Contributors
-
-[List contributors here]
-
-## Contact
-
-[Your contact information]
+- `test.bash`: Test API endpoints
+- `mock_rfid_reader.py`: Simulate RFID scans

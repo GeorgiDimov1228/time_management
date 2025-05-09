@@ -1,0 +1,194 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Export CSV - Time Management Admin{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Export Attendance Data</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Export Configuration</h5>
+            </div>
+            <div class="card-body">
+                <form id="exportForm" action="/api/export/csv" method="get" target="_blank">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="start_date" class="form-label">Start Date</label>
+                            <input type="text" class="form-control date-picker" id="start_date" name="start_date" 
+                                placeholder="Select date & time">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_date" class="form-label">End Date</label>
+                            <input type="text" class="form-control date-picker" id="end_date" name="end_date" 
+                                placeholder="Select date & time">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="event_type" class="form-label">Event Type</label>
+                            <select class="form-select" id="event_type" name="event_type">
+                                <option value="">All</option>
+                                <option value="checkin">Check In</option>
+                                <option value="checkout">Check Out</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="username" class="form-label">Employee</label>
+                            <select class="form-select" id="username" name="username">
+                                <option value="">All Employees</option>
+                                {% for employee in employees %}
+                                <option value="{{ employee.username }}">{{ employee.username }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="manual" class="form-label">Manual Entry</label>
+                            <select class="form-select" id="manual" name="manual">
+                                <option value="">All</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12 mt-4">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-download me-1"></i> Download CSV
+                            </button>
+                            <button type="reset" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i> Reset Form
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Export Information</h5>
+            </div>
+            <div class="card-body">
+                <h6 class="card-subtitle mb-3 text-muted">About CSV Exports</h6>
+                <p>CSV exports include the following sections:</p>
+                <ul>
+                    <li><strong>Employee Summary:</strong> Lists each employee with attendance statistics:
+                        <ul>
+                            <li>Employee Name</li>
+                            <li>Days Present</li>
+                            <li>Total Hours</li>
+                        </ul>
+                    </li>
+                    <li><strong>Detailed Records:</strong> Lists individual attendance events:
+                        <ul>
+                            <li>Employee Name</li>
+                            <li>Event Type (checkin/checkout)</li>
+                            <li>Timestamp</li>
+                        </ul>
+                    </li>
+                </ul>
+                <hr>
+                <h6 class="mb-3">Quick Exports</h6>
+                <div class="mb-3">
+                    <label for="quick_export" class="form-label">Select a predefined date range</label>
+                    <select id="quick_export" class="form-select">
+                        <option value="">Choose date range...</option>
+                        <option value="today">Today's Attendance</option>
+                        <option value="week">This Week's Attendance</option>
+                        <option value="month">This Month's Attendance</option>
+                        <option value="last-month">Last Month's Attendance</option>
+                    </select>
+                    <div class="mt-2">
+                        <button type="button" id="apply_quick_export" class="btn btn-success btn-sm">
+                            <i class="fas fa-download me-1"></i> Export Selected Range
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Hidden form for exports -->
+                <form id="quickExportForm" action="/api/export/csv" method="get" style="display:none;">
+                    <input type="hidden" id="export_start_date" name="start_date" value="">
+                    <input type="hidden" id="export_end_date" name="end_date" value="">
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize datetime pickers
+        flatpickr(".date-picker", {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i",
+            time_24hr: true
+        });
+
+        // Form validation before submit
+        document.getElementById('exportForm').addEventListener('submit', function(e) {
+            // Optionally add validation logic here
+            // For example, require at least one filter to be set
+            
+            // Show user feedback
+            const downloadBtn = this.querySelector('button[type="submit"]');
+            downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
+            setTimeout(() => {
+                downloadBtn.innerHTML = '<i class="fas fa-download me-1"></i> Download CSV';
+            }, 3000);
+        });
+        
+        // Quick Export button handler
+        document.getElementById('apply_quick_export').addEventListener('click', function() {
+            const selectedRange = document.getElementById('quick_export').value;
+            if (!selectedRange) {
+                alert('Please select a date range first');
+                return;
+            }
+            
+            // Set the appropriate date values based on selection
+            let startDate, endDate;
+            
+            switch(selectedRange) {
+                case 'today':
+                    startDate = '{{ today_start }}';
+                    endDate = '{{ today_end }}';
+                    break;
+                case 'week':
+                    startDate = '{{ week_start }}';
+                    endDate = '{{ week_end }}';
+                    break;
+                case 'month':
+                    startDate = '{{ month_start }}';
+                    endDate = '{{ month_end }}';
+                    break;
+                case 'last-month':
+                    startDate = '{{ last_month_start }}';
+                    endDate = '{{ last_month_end }}';
+                    break;
+                default:
+                    return;
+            }
+            
+            // Set form values and submit
+            document.getElementById('export_start_date').value = startDate;
+            document.getElementById('export_end_date').value = endDate;
+            document.getElementById('quickExportForm').submit();
+            
+            // Show feedback
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Generating...';
+            setTimeout(() => {
+                this.innerHTML = '<i class="fas fa-download me-1"></i> Export Selected Range';
+            }, 3000);
+        });
+    });
+</script>
+{% endblock %} 

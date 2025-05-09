@@ -6,6 +6,7 @@ from sqlalchemy.future import select as future_select # If using SQLAlchemy < 2.
 from app import models, schemas
 from passlib.context import CryptContext
 from datetime import datetime
+from sqlalchemy.orm import selectinload
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -70,9 +71,15 @@ async def get_employee_by_rfid(db: AsyncSession, rfid: str):
     result = await db.execute(select(models.Employee).filter(models.Employee.rfid == rfid))
     return result.scalars().first()
 
-async def get_employee_by_username(db: AsyncSession, username: str): 
-    result = await db.execute(select(models.Employee).filter(models.Employee.username == username))
-    return result.scalars().first()
+async def get_employee_by_username(db, username: str): 
+    """Modified to handle both sync and async sessions"""
+    try:
+        # If it's a synchronous session
+        return db.query(models.Employee).filter(models.Employee.username == username).first()
+    except AttributeError:
+        # Fall back to async approach if needed
+        result = await db.execute(select(models.Employee).filter(models.Employee.username == username))
+        return result.scalars().first()
 
 async def create_employee(db: AsyncSession, employee: schemas.EmployeeCreate): 
     if employee.is_admin and not employee.password:
@@ -93,15 +100,24 @@ async def create_employee(db: AsyncSession, employee: schemas.EmployeeCreate):
     return db_employee
 
 
-async def update_employee(db: AsyncSession, user_id: int, employee_update: schemas.EmployeeCreate):
-    db_employee = await get_employee(db, user_id) 
-    if not db_employee: return None
-    update_data = employee_update.model_dump(exclude_unset=True)
+async def update_employee(db: AsyncSession, employee_id: int, employee: schemas.EmployeeUpdate):
+    db_employee = await get_employee(db, user_id=employee_id) 
+    if not db_employee:
+        return None
+    
+    update_data = employee.model_dump(exclude_unset=True)
+    
+    # Handle password separately
     if 'password' in update_data and update_data['password']:
         update_data['hashed_password'] = pwd_context.hash(update_data['password'])
         del update_data['password']
-    elif 'password' in update_data: del update_data['password']
-    for key, value in update_data.items(): setattr(db_employee, key, value)
+    elif 'password' in update_data:
+        del update_data['password']
+    
+    # Update fields
+    for key, value in update_data.items():
+        setattr(db_employee, key, value)
+    
     await db.commit()
     await db.refresh(db_employee)
     return db_employee
@@ -150,7 +166,7 @@ async def get_filtered_attendance_events(
     manual: bool = None
 ):
     """Get attendance events with filters applied"""
-    query = select(models.AttendanceEvent).join(models.Employee)
+    query = select(models.AttendanceEvent).options(selectinload(models.AttendanceEvent.employee)).join(models.Employee)
     
     # Build filter conditions
     conditions = []
@@ -182,3 +198,37 @@ async def get_filtered_attendance_events(
     
     result = await db.execute(query)
     return result.scalars().all()
+
+async def get_attendance_event(db: AsyncSession, event_id: int):
+    """Get a single attendance event by ID"""
+    query = select(models.AttendanceEvent).options(
+        selectinload(models.AttendanceEvent.employee)
+    ).filter(models.AttendanceEvent.id == event_id)
+    
+    result = await db.execute(query)
+    return result.scalars().first()
+
+async def update_attendance_event(db: AsyncSession, event_id: int, event_data: dict):
+    """Update an attendance event"""
+    # Get the existing event
+    event = await get_attendance_event(db, event_id)
+    if not event:
+        return None
+    
+    # Update fields
+    for key, value in event_data.items():
+        setattr(event, key, value)
+    
+    await db.commit()
+    await db.refresh(event)
+    return event
+
+async def delete_attendance_event(db: AsyncSession, event_id: int):
+    """Delete an attendance event"""
+    event = await get_attendance_event(db, event_id)
+    if not event:
+        return None
+    
+    await db.delete(event)
+    await db.commit()
+    return event

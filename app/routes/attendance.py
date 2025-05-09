@@ -1,11 +1,11 @@
 # time_management/app/routes/attendance.py
-from fastapi import APIRouter, HTTPException, Depends, Body, Query
+from fastapi import APIRouter, HTTPException, Depends, Body, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession # Use AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from datetime import datetime, timedelta, timezone
 from app import models, schemas, crud, security
 from app.database import get_async_db # Use async dependency
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import os
 import csv
 import io
@@ -17,19 +17,39 @@ router = APIRouter(
     tags=["attendance"],
 )
 
+# Helper function to create a CSV StreamingResponse
+def create_csv_response(data: List[List[str]], filename: str) -> StreamingResponse:
+    """Helper function to create a CSV streaming response"""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write data
+    for row in data:
+        writer.writerow(row)
+    
+    # Reset the pointer to the beginning of the StringIO object
+    output.seek(0)
+    
+    # Return the CSV as a downloadable file
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 @router.post("/scan", response_model=schemas.AttendanceEventResponse)
 async def process_rfid_scan( 
     scan_data: schemas.RFIDScanRequest,
     db: AsyncSession = Depends(get_async_db),
     # Use the async version of get_current_authenticated_user (defined in step 5)
-    current_user: models.Employee = Depends(security.get_current_authenticated_user_async)
+    # current_user: models.Employee = Depends(security.get_current_authenticated_user_async)
 ):
     rfid_tag = scan_data.rfid.strip()
     if not rfid_tag:
         raise HTTPException(status_code=400, detail="RFID tag cannot be empty")
 
-    print(f"\nProcessing direct scan request for RFID: {rfid_tag} by user: {current_user.username}")
-    # print(f"\nProcessing direct scan request for RFID: {rfid_tag} ")
+    # print(f"\nProcessing direct scan request for RFID: {rfid_tag} by user: {current_user.username}")
+    print(f"\nProcessing direct scan request for RFID: {rfid_tag} ")
 
 
     employee = await crud.get_employee_by_rfid(db, rfid_tag)
@@ -174,6 +194,7 @@ async def get_filtered_attendance(
 
 @router.get("/export/csv", response_class=StreamingResponse)
 async def export_attendance_csv(
+    request: Request,
     start_date: Optional[datetime] = Query(None, description="Filter by start date (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="Filter by end date (ISO format)"),
     event_type: Optional[str] = Query(None, description="Filter by event type (checkin/checkout)"),
@@ -181,9 +202,10 @@ async def export_attendance_csv(
     username: Optional[str] = Query(None, description="Filter by username"),
     manual: Optional[bool] = Query(None, description="Filter by manual flag (true/false)"),
     db: AsyncSession = Depends(get_async_db),
-    authenticated_user: models.Employee = Depends(security.get_current_authenticated_user_async)
+    authenticated_user: models.Employee = Depends(security.get_admin_from_cookie)
 ):
     """Export filtered attendance events as CSV"""
+    # Get filtered events
     events = await crud.get_filtered_attendance_events(
         db,
         start_date=start_date,
@@ -194,45 +216,72 @@ async def export_attendance_csv(
         manual=manual
     )
     
-    # Create a StringIO object to write CSV data
-    output = io.StringIO()
-    writer = csv.writer(output)
+    # Get all employees
+    result = await db.execute(select(models.Employee))
+    employees = result.scalars().all()
     
-    # Write headers
-    writer.writerow(['ID', 'User ID', 'Username', 'Event Type', 'Timestamp', 'Manual'])
+    # Prepare employee statistics
+    employee_data = {}
+    for employee in employees:
+        employee_data[employee.id] = {
+            "username": employee.username,
+            "rfid": employee.rfid,
+            "events": [],
+            "total_days": 0,
+            "total_hours": 0
+        }
     
-    # Write data rows
-    for event in events:
-        writer.writerow([
-            event.id,
-            event.user_id,
-            event.employee.username,  # Access the related employee's username
+    # Calculate employee statistics
+    calculate_employee_statistics(events, employee_data)
+    
+    # Prepare CSV data with two sections
+    csv_data = [
+        # First section: Summary with Days Present and Total Hours
+        ['Employee Summary'],
+        ['Employee Name', 'Days Present', 'Total Hours'],
+    ]
+    
+    # Add summary rows for each employee
+    for emp_id, data in employee_data.items():
+        # Only include employees with records in the filtered period
+        if data["events"]:
+            csv_data.append([
+                data["username"],
+                data["total_days"],
+                f"{data['total_hours']:.2f}"
+            ])
+    
+    # Add separator between sections
+    csv_data.append([])
+    csv_data.append(['Detailed Attendance Records'])
+    
+    # Add headers for detailed records
+    csv_data.append(['Employee Name', 'Event Type', 'Timestamp'])
+    
+    # Add detailed rows sorted by timestamp
+    sorted_events = sorted(events, key=lambda e: e.timestamp)
+    for event in sorted_events:
+        csv_data.append([
+            event.employee.username,
             event.event_type,
-            event.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-            "Yes" if event.manual else "No"
+            event.timestamp.strftime("%Y-%m-%d %H:%M:%S")
         ])
     
     # Generate filename with current timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"attendance_export_{timestamp}.csv"
     
-    # Reset the pointer to the beginning of the StringIO object
-    output.seek(0)
-    
-    # Return the CSV as a downloadable file
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
+    # Return CSV response
+    return create_csv_response(csv_data, filename)
 
 @router.get("/admin/report", response_class=StreamingResponse)
 async def admin_attendance_report(
+    request: Request,
     start_date: datetime = Query(..., description="Report start date (ISO format, required)"),
     end_date: datetime = Query(..., description="Report end date (ISO format, required)"),
-    include_details: bool = Query(True, description="Include detailed entries in report"),
+    username: Optional[str] = Query(None, description="Filter by employee username"),
     db: AsyncSession = Depends(get_async_db),
-    admin_user: models.Employee = Depends(security.get_current_admin_user_async)
+    admin_user: models.Employee = Depends(security.get_admin_from_cookie)
 ):
     """
     Generate a comprehensive attendance report for admins.
@@ -242,16 +291,21 @@ async def admin_attendance_report(
     result = await db.execute(select(models.Employee))
     employees = result.scalars().all()
     
-    # Get all attendance events in date range
+    # Get all attendance events in date range with optional employee filter
     events = await crud.get_filtered_attendance_events(
         db,
         start_date=start_date,
-        end_date=end_date
+        end_date=end_date,
+        username=username
     )
     
     # Process data for report
     employee_data = {}
     for employee in employees:
+        # If username filter is applied, skip other employees
+        if username and employee.username != username:
+            continue
+            
         employee_data[employee.id] = {
             "id": employee.id,
             "username": employee.username,
@@ -261,6 +315,58 @@ async def admin_attendance_report(
             "total_hours": 0
         }
     
+    # Calculate employee statistics
+    calculate_employee_statistics(events, employee_data)
+    
+    # Prepare CSV data
+    csv_data = [
+        # Main report headers
+        ['Username', 'RFID', 'Days Present', 'Total Hours']
+    ]
+    
+    # Write summary data for each employee
+    for emp_id, data in employee_data.items():
+        csv_data.append([
+            data["username"],
+            data["rfid"],
+            data["total_days"],
+            f"{data['total_hours']:.2f}"
+        ])
+    
+    # Add separator and headers for details
+    csv_data.append([])  # Empty row as separator
+    csv_data.append(['Detailed Entries'])
+    csv_data.append(['Employee', 'Event Type', 'Timestamp'])
+    
+    # Sort all events by timestamp
+    all_events_sorted = sorted(events, key=lambda e: e.timestamp)
+    
+    # Add detail rows
+    for event in all_events_sorted:
+        if event.user_id in employee_data:
+            csv_data.append([
+                employee_data[event.user_id]["username"],
+                event.event_type,
+                event.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            ])
+    
+    # Generate filename with current timestamp and date range
+    start_str = start_date.strftime("%Y%m%d")
+    end_str = end_date.strftime("%Y%m%d")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Add employee name to filename if filtered
+    if username:
+        filename = f"attendance_report_{username}_{start_str}_to_{end_str}_{timestamp}.csv"
+    else:
+        filename = f"attendance_report_{start_str}_to_{end_str}_{timestamp}.csv"
+    
+    # Return CSV response
+    return create_csv_response(csv_data, filename)
+
+# Helper function for report generation
+def calculate_employee_statistics(events: List[models.AttendanceEvent], employee_data: Dict[int, Dict[str, Any]]):
+    """Calculate statistics for each employee based on their attendance events"""
     # Group events by employee and date
     daily_events = {}
     for event in events:
@@ -312,55 +418,4 @@ async def admin_attendance_report(
             # Add to employee total hours (convert seconds to hours)
             if total_seconds > 0:
                 employee_data[employee_id]["total_hours"] += total_seconds / 3600
-    
-    # Create CSV report
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # Main report headers
-    writer.writerow(['Employee ID', 'Username', 'RFID', 'Days Present', 'Total Hours'])
-    
-    # Write summary data for each employee
-    for emp_id, data in employee_data.items():
-        writer.writerow([
-            data["id"],
-            data["username"],
-            data["rfid"],
-            data["total_days"],
-            f"{data['total_hours']:.2f}"
-        ])
-    
-    # Add detailed entries if requested
-    if include_details:
-        writer.writerow([])  # Empty row as separator
-        writer.writerow(['Detailed Entries'])
-        writer.writerow(['ID', 'Employee', 'Event Type', 'Timestamp', 'Manual'])
-        
-        # Sort all events by timestamp
-        all_events_sorted = sorted(events, key=lambda e: e.timestamp)
-        
-        for event in all_events_sorted:
-            writer.writerow([
-                event.id,
-                employee_data[event.user_id]["username"] if event.user_id in employee_data else "Unknown",
-                event.event_type,
-                event.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-                "Yes" if event.manual else "No"
-            ])
-    
-    # Generate filename with current timestamp and date range
-    start_str = start_date.strftime("%Y%m%d")
-    end_str = end_date.strftime("%Y%m%d")
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"attendance_report_{start_str}_to_{end_str}_{timestamp}.csv"
-    
-    # Reset the pointer to the beginning of the StringIO object
-    output.seek(0)
-    
-    # Return the CSV as a downloadable file
-    return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
 

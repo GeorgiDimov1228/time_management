@@ -31,7 +31,7 @@ class AttendanceEvent(Base):
     event_type = Column(String, index=True)  # "checkin" or "checkout"
     # timestamp = Column(DateTime, default=datetime.utcnow)
     timestamp = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-
     manual = Column(Boolean, default=True)
+    notes = Column(String, nullable=True)  # Add notes field
 
     employee = relationship("Employee", back_populates="attendance_events")

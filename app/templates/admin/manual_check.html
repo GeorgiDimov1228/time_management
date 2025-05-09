@@ -1,0 +1,69 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Manual Check In/Out - Time Management Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Manual Check In/Out</h1>
+</div>
+
+{% if success %}
+<div class="alert alert-success">
+    {{ success }}
+</div>
+{% endif %}
+
+{% if error %}
+<div class="alert alert-danger">
+    {{ error }}
+</div>
+{% endif %}
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0">Record Attendance Event</h5>
+    </div>
+    <div class="card-body">
+        <form method="post" action="/admin/manual-check">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="user_id" class="form-label">Employee <span class="text-danger">*</span></label>
+                    <select class="form-select" id="user_id" name="user_id" required>
+                        <option value="">Select an employee</option>
+                        {% for employee in employees %}
+                        <option value="{{ employee.id }}">{{ employee.username }} ({{ employee.email }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="event_type" class="form-label">Event Type <span class="text-danger">*</span></label>
+                    <select class="form-select" id="event_type" name="event_type" required>
+                        <option value="checkin">Check In</option>
+                        <option value="checkout">Check Out</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="timestamp" class="form-label">Timestamp <span class="text-danger">*</span></label>
+                    <input type="datetime-local" class="form-control" id="timestamp" name="timestamp" value="{{ current_time }}" required>
+                </div>
+                <div class="col-md-6">
+                    <label for="notes" class="form-label">Notes</label>
+                    <input type="text" class="form-control" id="notes" name="notes" placeholder="Optional notes about this event">
+                </div>
+                <div class="col-12 mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save me-1"></i> Record Attendance
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="mt-4">
+    <h3>Recent Manual Entries</h3>
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i> All manual entries are clearly marked in the attendance records and can be viewed in the <a href="/admin/attendance">Attendance</a> section.
+    </div>
+</div>
+{% endblock %} 

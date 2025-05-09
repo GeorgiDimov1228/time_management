@@ -1,0 +1,105 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ 'Edit' if employee else 'Add' }} Employee - Time Management Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ 'Edit' if employee else 'Add New' }} Employee</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="/admin/employees" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to Employees
+        </a>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if success %}
+<div class="alert alert-success">
+    {{ success }}
+</div>
+{% endif %}
+
+<div class="card shadow-sm">
+    <div class="card-header">
+        <h5 class="mb-0">Employee Information</h5>
+    </div>
+    <div class="card-body">
+        <form method="post" action="{{ '/admin/employees/' + employee.id|string if employee else '/admin/employees/add' }}">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="username" class="form-label">Username <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="username" name="username" value="{{ employee.username if employee else '' }}" required>
+                </div>
+                <div class="col-md-6">
+                    <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
+                    <input type="email" class="form-control" id="email" name="email" value="{{ employee.email if employee else '' }}" required>
+                </div>
+                <div class="col-md-6">
+                    <label for="rfid" class="form-label">RFID Tag <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="rfid" name="rfid" value="{{ employee.rfid if employee else '' }}" required>
+                </div>
+                <div class="col-md-6">
+                    <label for="is_admin" class="form-label">Admin Status</label>
+                    <select class="form-select" id="is_admin" name="is_admin">
+                        <option value="false" {% if employee and not employee.is_admin %}selected{% endif %}>Regular User</option>
+                        <option value="true" {% if employee and employee.is_admin %}selected{% endif %}>Admin</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="password" class="form-label">{{ 'New Password' if employee else 'Password' }} {% if not employee %}<span class="text-danger">*</span>{% endif %}</label>
+                    <input type="password" class="form-control" id="password" name="password" {% if not employee %}required{% endif %}>
+                    {% if employee %}
+                    <div class="form-text">Leave blank to keep current password</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    <label for="confirm_password" class="form-label">{{ 'Confirm New Password' if employee else 'Confirm Password' }} {% if not employee %}<span class="text-danger">*</span>{% endif %}</label>
+                    <input type="password" class="form-control" id="confirm_password" name="confirm_password" {% if not employee %}required{% endif %}>
+                </div>
+                <div class="col-12 mt-4">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save me-1"></i> {{ 'Update Employee' if employee else 'Add Employee' }}
+                    </button>
+                    <a href="/admin/employees" class="btn btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i> Cancel
+                    </a>
+                    {% if employee %}
+                    <button type="button" class="btn btn-danger float-end" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                        <i class="fas fa-trash-alt me-1"></i> Delete Employee
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if employee %}
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete employee <strong>{{ employee.username }}</strong>?</p>
+                <p class="text-danger">This action cannot be undone. All attendance records for this employee will also be deleted.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="/admin/employees/{{ employee.id }}/delete" method="post">
+                    <button type="submit" class="btn btn-danger">Delete Employee</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %} 

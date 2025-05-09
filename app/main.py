@@ -4,6 +4,8 @@ import datetime
 import asyncio # Import asyncio for potential future use in startup events
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 # --- Database Imports ---
 # Import sync engine and session for SQLAdmin and initial setup
@@ -15,12 +17,8 @@ SessionLocal = SyncSessionLocal
 
 # --- App Component Imports ---
 from app import models, crud, schemas
-from app.routes import users, attendance
+from app.routes import users, attendance, admin
 from app.auth import router as auth_router
-
-# --- SQLAdmin Imports ---
-from sqladmin import Admin, ModelView
-from app.admin_auth import authentication_backend # Import the custom auth backend
 
 # --- Database Table Creation ---
 # Create tables using the synchronous engine if they don't exist.
@@ -41,44 +39,45 @@ if not SESSION_SECRET_KEY:
     SESSION_SECRET_KEY = "your-secret-key-for-sessions" # Fallback, but log a warning
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
 
-
-# --- SQLAdmin Setup ---
-
-# Define Admin Views (keep as previously defined)
-class EmployeeAdmin(ModelView, model=models.Employee):
-    column_list = [models.Employee.id, models.Employee.username, models.Employee.email, models.Employee.rfid, models.Employee.is_admin]
-    column_labels = { models.Employee.id: "ID", models.Employee.username: 'Username', models.Employee.email: 'Email', models.Employee.rfid: 'RFID', models.Employee.is_admin: 'Admin' }
-    column_searchable_list = [models.Employee.username, models.Employee.rfid, models.Employee.email]
-    column_sortable_list = [models.Employee.id, models.Employee.username, models.Employee.is_admin, models.Employee.rfid, models.Employee.email]
-    form_excluded_columns = [models.Employee.hashed_password, models.Employee.attendance_events]
-    name = "Employee"; name_plural = "Employees"; icon = "fa-solid fa-user"
-
-class AttendanceEventAdmin(ModelView, model=models.AttendanceEvent):
-    column_list = [ models.AttendanceEvent.id, 'employee.username', models.AttendanceEvent.event_type, models.AttendanceEvent.timestamp, models.AttendanceEvent.manual ]
-    column_labels = { models.AttendanceEvent.id: "ID", 'employee.username': 'Username', models.AttendanceEvent.event_type: 'Type', models.AttendanceEvent.timestamp: 'Timestamp', models.AttendanceEvent.manual: 'Manual' }
-    form_excluded_columns = [models.AttendanceEvent.manual] # Manual is auto-set
-    column_formatters = { models.AttendanceEvent.timestamp: lambda m, a: getattr(m, a).strftime("%Y-%m-%d %H:%M:%S") if getattr(m, a) else "" }
-    column_formatters_detail = column_formatters # Use same formatters for detail view
-    column_sortable_list = [models.AttendanceEvent.id, models.AttendanceEvent.timestamp, models.AttendanceEvent.event_type, 'employee.username', models.AttendanceEvent.manual]
-    column_searchable_list = [ models.AttendanceEvent.event_type, 'employee.username' ]
-    column_details_list = [ models.AttendanceEvent.id, 'employee.username', models.AttendanceEvent.event_type, models.AttendanceEvent.timestamp, models.AttendanceEvent.manual ]
-    column_filters = [models.AttendanceEvent.event_type, models.AttendanceEvent.manual, models.AttendanceEvent.employee]
-    name = "Attendance"; name_plural = "Attendance"; icon = "fa-solid fa-clock"
-
-
-# Initialize Admin with the synchronous engine and authentication backend
-admin = Admin(app=app, engine=sync_engine, authentication_backend=authentication_backend)
-
-# Register Admin Views
-admin.add_view(EmployeeAdmin)
-admin.add_view(AttendanceEventAdmin)
+# --- Mount Static Files ---
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # --- Include API Routers ---
-# Note the dependencies used within each router (sync vs async)
+# Note the dependencies used within each router
 app.include_router(auth_router, prefix="/api")       
 app.include_router(users.router, prefix="/api")       
-app.include_router(attendance.router, prefix="/api")  
+app.include_router(attendance.router, prefix="/api")
+app.include_router(admin.router)  # Admin router with custom UI
 
+# --- Schema Updates ---
+# def update_schema():
+#     """Ensure database schema is up to date with model changes."""
+#     print("Checking for schema updates...")
+    
+#     # Use a synchronous connection for schema updates
+#     from sqlalchemy import text
+#     with sync_engine.connect() as conn:
+#         # Check if notes column exists in attendance_events
+#         check_query = text("""
+#         SELECT column_name 
+#         FROM information_schema.columns 
+#         WHERE table_name='attendance_events' AND column_name='notes';
+#         """)
+        
+#         result = conn.execute(check_query)
+#         exists = result.scalar() is not None
+        
+#         if not exists:
+#             print("Adding 'notes' column to attendance_events table...")
+#             add_column_query = text("""
+#             ALTER TABLE attendance_events 
+#             ADD COLUMN notes TEXT;
+#             """)
+#             conn.execute(add_column_query)
+#             conn.commit()
+#             print("Column added successfully.")
+#         else:
+#             print("Notes column already exists.")
 
 # --- Default Admin User Creation ---
 def create_default_admin():
@@ -127,8 +126,12 @@ def create_default_admin():
 
 # --- Run Startup Tasks ---
 print("Running startup tasks...")
-create_default_admin()
-print("Startup tasks complete.")
+try:
+    create_default_admin()
+    update_schema()  # Add schema update check
+    print("Startup tasks complete.")
+except Exception as e:
+    print(f"Error during startup tasks: {e}")
 
 # --- Optional: Add root endpoint for basic check ---
 @app.get("/")

@@ -16,6 +16,9 @@ class EmployeeCreate(EmployeeBase):
     password: constr(min_length=8)
     is_admin: bool = False  # Include the flag here
     
+class EmployeeUpdate(EmployeeBase):
+    password: Optional[constr(min_length=8)] = None
+    is_admin: bool = False
 
 class EmployeeResponse(EmployeeBase):
     id: int
