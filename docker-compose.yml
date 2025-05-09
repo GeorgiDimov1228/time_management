@@ -2,11 +2,31 @@ services:
   db:
     image: postgres:13
     environment:
-      POSTGRES_USER: yourusername
-      POSTGRES_PASSWORD: yourpassword
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: time_management_db
+      # PostgreSQL memory optimization parameters
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+      POSTGRES_SHARED_BUFFERS: "1GB" 
+      POSTGRES_WORK_MEM: "32MB"
+      POSTGRES_MAINTENANCE_WORK_MEM: "256MB"
+      POSTGRES_EFFECTIVE_CACHE_SIZE: "3GB"
+      # Auto-vacuum settings
+      POSTGRES_AUTOVACUUM: "on"
+      POSTGRES_AUTOVACUUM_NAPTIME: "1h"
+      POSTGRES_LOG_AUTOVACUUM_MIN_DURATION: "250ms"
+      POSTGRES_AUTOVACUUM_MAX_WORKERS: "3"
+      POSTGRES_AUTOVACUUM_VACUUM_SCALE_FACTOR: "0.1"
+      POSTGRES_AUTOVACUUM_ANALYZE_SCALE_FACTOR: "0.05"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Mount a custom PostgreSQL configuration file
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    deploy:
+      resources:
+        limits:
+          memory: 4GB
     ports:
       - "5434:5432"
     healthcheck:
