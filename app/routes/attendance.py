@@ -42,14 +42,13 @@ async def process_rfid_scan(
     scan_data: schemas.RFIDScanRequest,
     db: AsyncSession = Depends(get_async_db),
     # Use the async version of get_current_authenticated_user (defined in step 5)
-    # current_user: models.Employee = Depends(security.get_current_authenticated_user_async)
+    current_user: models.Employee = Depends(security.get_current_authenticated_user_async)
 ):
     rfid_tag = scan_data.rfid.strip()
     if not rfid_tag:
         raise HTTPException(status_code=400, detail="RFID tag cannot be empty")
 
-    # print(f"\nProcessing direct scan request for RFID: {rfid_tag} by user: {current_user.username}")
-    print(f"\nProcessing direct scan request for RFID: {rfid_tag} ")
+    print(f"\nProcessing direct scan request for RFID: {rfid_tag} by user: {current_user.username}")
 
 
     employee = await crud.get_employee_by_rfid(db, rfid_tag)
@@ -89,6 +88,114 @@ async def process_rfid_scan(
     )
     new_event = await crud.create_attendance_event(db, new_event_data)
     print(f"Successfully recorded '{next_action}' for {rfid_tag}")
+
+    return new_event
+
+
+@router.post("/checkin-scan", response_model=schemas.AttendanceEventResponse)
+async def process_checkin_scan( 
+    scan_data: schemas.RFIDScanRequest,
+    db: AsyncSession = Depends(get_async_db),
+    # Use the async version of get_current_authenticated_user (defined in step 5)
+    current_user: models.Employee = Depends(security.get_current_authenticated_user_async)
+):
+    rfid_tag = scan_data.rfid.strip()
+    if not rfid_tag:
+        raise HTTPException(status_code=400, detail="RFID tag cannot be empty")
+
+    print(f"\nProcessing direct scan request for RFID: {rfid_tag} by user: {current_user.username}")
+
+    employee = await crud.get_employee_by_rfid(db, rfid_tag)
+    if not employee:
+        print(f"Employee not found for RFID: {rfid_tag}")
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    # Check cooldown regardless of event type
+    latest_event = await crud.get_latest_attendance_event(db, employee.id)
+    last_event_dt = latest_event.timestamp if latest_event else None
+
+    if last_event_dt:
+        if last_event_dt.tzinfo is None:
+            last_event_dt = last_event_dt.replace(tzinfo=timezone.utc)
+
+        current_time_utc = datetime.now(timezone.utc)
+        time_since_last_event = current_time_utc - last_event_dt
+        print(f"Time since last event at {last_event_dt}: {time_since_last_event}")
+
+        if time_since_last_event.total_seconds() < ACTION_COOLDOWN_SECONDS:
+            print(f"Cooldown active for {rfid_tag}. Ignoring scan.")
+            raise HTTPException(
+                status_code=429, 
+                detail=f"Cooldown active. Try again later. Last event was at {last_event_dt}"
+            )
+        else:
+            print("Cooldown passed.")
+    else:
+        print("No previous event found, proceeding.")
+
+    # Always create a check-in event
+    new_event_data = models.AttendanceEvent(
+        user_id=employee.id,
+        event_type="checkin",
+        timestamp=datetime.now(timezone.utc),
+        manual=False
+    )
+    new_event = await crud.create_attendance_event(db, new_event_data)
+    print(f"Successfully recorded check-in for {rfid_tag}")
+
+    return new_event
+
+
+@router.post("/checkout-scan", response_model=schemas.AttendanceEventResponse)
+async def process_checkout_scan( 
+    scan_data: schemas.RFIDScanRequest,
+    db: AsyncSession = Depends(get_async_db),
+    # Use the async version of get_current_authenticated_user (defined in step 5)
+    current_user: models.Employee = Depends(security.get_current_authenticated_user_async)
+):
+    rfid_tag = scan_data.rfid.strip()
+    if not rfid_tag:
+        raise HTTPException(status_code=400, detail="RFID tag cannot be empty")
+
+    print(f"\nProcessing check-out scan request for RFID: {rfid_tag} by user: {current_user.username}")
+
+    employee = await crud.get_employee_by_rfid(db, rfid_tag)
+    if not employee:
+        print(f"Employee not found for RFID: {rfid_tag}")
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    # Check cooldown regardless of event type
+    latest_event = await crud.get_latest_attendance_event(db, employee.id)
+    last_event_dt = latest_event.timestamp if latest_event else None
+
+    if last_event_dt:
+        if last_event_dt.tzinfo is None:
+            last_event_dt = last_event_dt.replace(tzinfo=timezone.utc)
+
+        current_time_utc = datetime.now(timezone.utc)
+        time_since_last_event = current_time_utc - last_event_dt
+        print(f"Time since last event at {last_event_dt}: {time_since_last_event}")
+
+        if time_since_last_event.total_seconds() < ACTION_COOLDOWN_SECONDS:
+            print(f"Cooldown active for {rfid_tag}. Ignoring scan.")
+            raise HTTPException(
+                status_code=429, 
+                detail=f"Cooldown active. Try again later. Last event was at {last_event_dt}"
+            )
+        else:
+            print("Cooldown passed.")
+    else:
+        print("No previous event found, proceeding.")
+
+    # Always create a check-out event
+    new_event_data = models.AttendanceEvent(
+        user_id=employee.id,
+        event_type="checkout",
+        timestamp=datetime.now(timezone.utc),
+        manual=False
+    )
+    new_event = await crud.create_attendance_event(db, new_event_data)
+    print(f"Successfully recorded check-out for {rfid_tag}")
 
     return new_event
 

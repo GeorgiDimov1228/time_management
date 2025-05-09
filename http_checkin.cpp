@@ -17,10 +17,10 @@ MFRC522 rfid(SS_PIN, RST_PIN); // Create MFRC522 instance
 // Network credentials
 const char* ssid = "USERNAME";                 
 const char* password = "PASSS";         
-const char* serverUrl = "http://IPOFSERVER/api/scan";
+const char* serverUrl = "http://IPOFSERVER/api/checkin-scan";  // Check-in specific endpoint
 const char* tokenUrl = "http://IPOFSERVER/api/token";          // Token endpoint
-const char* apiUsername = "rfid_reader";                       // API username for auth
-const char* apiPassword = "secure_reader_password";            // API password for auth
+const char* apiUsername = "reader_username";                   // API username for auth
+const char* apiPassword = "secure_reader_password";                   // API password for auth
 
 // Authentication variables
 String authToken = "";
@@ -32,7 +32,7 @@ void setup() {
   SPI.begin();          // Init SPI bus
   rfid.PCD_Init();      // Init MFRC522
   rfid.PCD_DumpVersionToSerial(); // Optional: prints MFRC522 version to Serial Monitor
-  Serial.println("RFID Reader Initialized.");
+  Serial.println("CHECK-IN RFID Reader Initialized.");
 
   // Setup LED pins
   pinMode(GREEN_LED_PIN, OUTPUT);
@@ -110,7 +110,7 @@ void loop() {
       tagUID += String(rfid.uid.uidByte[i], HEX);
     }
     tagUID.toUpperCase(); // Convert to uppercase for consistency
-    Serial.println("Scanned RFID: " + tagUID);
+    Serial.println("Scanned RFID for CHECK-IN: " + tagUID);
 
     // Send the tag to the backend
     sendRFIDToServer(tagUID);
@@ -246,7 +246,7 @@ void sendRFIDToServer(String rfidTag) {
            Serial.println(">>");
            resetLEDs();
            digitalWrite(GREEN_LED_PIN, HIGH); // Turn on green LED for success
-           Serial.println("Success");
+           Serial.println("Success - Employee Checked In");
            delay(2000); // Show LED for 2 seconds
            digitalWrite(GREEN_LED_PIN, LOW); 
 
@@ -315,4 +315,4 @@ void sendRFIDToServer(String rfidTag) {
     delay(2000); 
     digitalWrite(RED_LED_PIN, LOW); 
   }
-}
+} 

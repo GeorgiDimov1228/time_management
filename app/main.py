@@ -85,7 +85,7 @@ def create_default_admin():
     Creates a default admin user on first startup if one doesn't exist.
     Uses SYNCHRONOUS database operations by calling specifically named sync CRUD functions.
     """
-    db = SessionLocal() # Use the synchronous session
+    db = SessionLocal()
     try:
         print("Checking for default admin user...")
         # Call the SYNCHRONOUS version explicitly
@@ -124,11 +124,54 @@ def create_default_admin():
         if db:
             db.close()
 
+# --- RFID Reader User Creation ---
+def create_rfid_reader_user():
+    """
+    Creates a dedicated RFID reader user on startup if one doesn't exist.
+    This user will be used by RFID readers to authenticate API calls.
+    Uses SYNCHRONOUS database operations.
+    """
+    db = SessionLocal()
+    try:
+        print("Checking for RFID reader user...")
+        # Get the username from environment or use default
+        reader_username = os.getenv("RFID_READER_USERNAME", "rfid_reader")
+        reader_user = crud.get_employee_by_username_sync(db, reader_username)
+        
+        if not reader_user:
+            reader_email = os.getenv("RFID_READER_EMAIL", "rfid_reader@example.com")
+            reader_password = os.getenv("RFID_READER_PASSWORD", "secure_reader_password")
+
+            if not reader_password:
+                print("ERROR: RFID_READER_PASSWORD is not set in the environment. Using default password.")
+                
+            reader_data = schemas.EmployeeCreate(
+                username=reader_username,
+                email=reader_email,
+                rfid="",  # No RFID tag for the reader account
+                password=reader_password,
+                is_admin=False  # Reader account is not an admin
+            )
+            print(f"RFID reader user '{reader_username}' not found. Attempting to create...")
+            created_user = crud.create_employee_sync(db=db, employee=reader_data)
+            if created_user:
+                print(f"RFID reader user '{created_user.username}' created successfully.")
+            else:
+                print("Failed to create RFID reader user.")
+        else:
+            print(f"RFID reader user '{reader_user.username}' already exists.")
+    except Exception as e:
+        print(f"An unexpected error occurred during RFID reader user creation: {e}")
+    finally:
+        if db:
+            db.close()
+
 # --- Run Startup Tasks ---
 print("Running startup tasks...")
 try:
     create_default_admin()
-    update_schema()  # Add schema update check
+    create_rfid_reader_user()  # Create the RFID reader user
+    # update_schema()  # Add schema update check
     print("Startup tasks complete.")
 except Exception as e:
     print(f"Error during startup tasks: {e}")
