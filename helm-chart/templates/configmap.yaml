@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "time-management-app.fullname" . }}-config
+data:
+  # Add non-sensitive environment variables here
+  APP_ENV: "production"
+  # Add more as needed

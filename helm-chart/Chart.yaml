@@ -1,0 +1,4 @@
+apiVersion: v2
+name: time-management-app
+description: A Helm chart for FastAPI Time Management System
+version: 0.1.0

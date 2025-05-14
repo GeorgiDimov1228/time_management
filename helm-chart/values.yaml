@@ -1,0 +1,17 @@
+replicaCount: 2
+
+image:
+  repository: your-dockerhub-username/time-management-app
+  tag: latest
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  host: your.domain.com
+  tlsSecretName: your-tls-secret
+
+env:
+  DATABASE_URL: "postgresql://user:password@postgres-service:5432/yourdb"

@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "time-management-app.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "time-management-app.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "time-management-app.name" . }}
+    spec:
+      containers:
+        - name: fastapi
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: {{ include "time-management-app.fullname" . }}-config
+            - secretRef:
+                name: {{ include "time-management-app.fullname" . }}-secret
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+          volumes:
+            - name: postgres-storage
+              persistentVolumeClaim:
+                claimName: postgres-pvc
+          readinessProbe:
+            httpGet:
+              path: /docs
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /docs
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30

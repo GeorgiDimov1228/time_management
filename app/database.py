@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from sqlalchemy.orm import declarative_base, sessionmaker # Import sessionmaker for sync
 from sqlalchemy import create_engine # Import create_engine for sync
 from dotenv import load_dotenv
+from typing import AsyncGenerator
 
 load_dotenv()
 
@@ -25,7 +26,7 @@ SyncSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_eng
 Base = declarative_base()
 
 # --- Async Dependency ---
-async def get_async_db() -> AsyncSession:
+async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
     async_session = AsyncSessionLocal()
     try:
         yield async_session
