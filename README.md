@@ -197,3 +197,9 @@ Use the following scripts to test the system:
 
 - `test.bash`: Test API endpoints
 - `mock_rfid_reader.py`: Simulate RFID scans
+
+
+## License
+
+Copyright (c) 2025 Georgi D. Dimov.
+This project is licensed under the terms of the MIT license. See the [LICENSE](https://github.com/GeorgiDimov1228/time_management/blob/main/LICENSE) file for details.
