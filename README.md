@@ -202,4 +202,4 @@ Use the following scripts to test the system:
 ## License
 
 Copyright (c) 2025 Georgi D. Dimov.
-This project is licensed under the terms of the MIT license. See the [LICENSE](https://github.com/GeorgiDimov1228/time_management/blob/main/LICENSE) file for details.
+This project is licensed under the Apache License Version 2.0. See the [LICENSE](https://github.com/GeorgiDimov1228/time_management/blob/main/LICENSE) file for details.
